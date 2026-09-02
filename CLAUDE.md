@@ -48,7 +48,8 @@ Each company (tenant) can only see its own data. Cross-tenant data leakage is st
 # Authentication & Authorization
 
 - Use **OAuth2 via Auth0** — the backend validates JWT tokens issued by Auth0 (do not implement the OAuth flow yourself)
-- Minimum role-based access control (RBAC): `admin`, `hr_manager`, `inventory_manager`, `employee`
+- Minimum role-based access control (RBAC): `admin`, `hr_manager`, `inventory_manager`, `employee` — these four are **tenant-scoped**: every token carrying one of them also carries a `company_id` claim, and every endpoint gated by them must filter by that `company_id`
+- `super_admin` is a **separate, platform-level role**, used only by platform operators managing the Companies (tenants) resource itself. It is not one of the four tenant roles above, is never combined with them, and its tokens carry **no `company_id` claim** (a `super_admin` isn't scoped to any one tenant). `POST`/`PUT /api/v1/companies` require `require_role(["super_admin"])` — a regular per-company `admin` must never be able to create or rename tenants; that was a real gap fixed once `super_admin` was introduced (those endpoints previously accepted plain `admin`). Any tenant-scoped endpoint (Employees/Products/Positions) correctly rejects a `super_admin` token with a clean `403 SUPER_ADMIN_NO_TENANT_ACCESS`, not a crash — `super_admin` has no tenant to browse
 - Every endpoint must clearly declare the roles allowed to access it, via a dependency (e.g. `require_role(["admin", "hr_manager"])`)
 - Never hardcode Auth0 secrets/API keys in the codebase. Use environment variables only (stored in `.env`, never committed to git)
 
@@ -124,5 +125,8 @@ Each company (tenant) can only see its own data. Cross-tenant data leakage is st
 # Notes / Constraints
 
 - Never modify the production schema directly — always go through migrations (Alembic)
-- Required environment variables: `DATABASE_URL`, `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_AUDIENCE`
+- Required environment variables:
+  - Backend: `DATABASE_URL`, `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`
+  - Frontend: `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`
+  - Note: no client secret is needed — the frontend is a public SPA client using Authorization Code Flow with PKCE
 - See ARCHITECTURE.md for hosting recommendations and free-tier considerations
