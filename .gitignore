@@ -20,7 +20,6 @@ coverage/
 
 # --- Environment secrets ---
 .env
-.env.example
 .env.*.local
 
 # --- Editors / OS ---
