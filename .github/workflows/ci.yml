@@ -60,7 +60,7 @@ jobs:
         run: alembic upgrade head
 
       - name: Run pytest (tenant isolation, RBAC, business rules — 64 tests)
-        run: pytest -v --color=yes
+        run: python -m pytest -v --color=yes
 
   frontend-tests:
     name: Frontend tests + build (Vitest)
