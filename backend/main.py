@@ -6,15 +6,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1 import auth, companies, employees, positions, products
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Local Management Application API")
 
-# TODO: move allowed origins to a setting once a production frontend URL exists.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=get_settings().allowed_origins_list,
     allow_methods=["*"],
     allow_headers=["*"],
 )
