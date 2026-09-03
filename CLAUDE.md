@@ -79,6 +79,13 @@ Each company (tenant) can only see its own data. Cross-tenant data leakage is st
 - Backend: write tests with `pytest` covering business logic and tenant isolation
 - Frontend: write tests with Vitest / React Testing Library for key components
 - Run lint and tests for both backend and frontend before every commit
+- CI (`.github/workflows/ci.yml`) runs automatically on every push and pull request, on any
+  branch: the full backend `pytest` suite (tenant isolation, RBAC, business rules) against a
+  temporary Postgres service container that's destroyed at the end of the job — never the
+  real Supabase database — plus the frontend Vitest suite and `npm run build`. Both jobs run
+  in parallel. This is meant to be a required check before merging to `main`; that has to be
+  turned on in the repo's GitHub branch protection settings (Settings → Branches) — a
+  workflow file alone doesn't block merges on its own
 
 # Documentation Maintenance
 

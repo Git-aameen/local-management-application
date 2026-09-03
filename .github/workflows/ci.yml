@@ -1,0 +1,93 @@
+name: CI
+
+# No `branches:` filter on either trigger — this runs on push/PR to any branch, per project
+# policy (see CLAUDE.md § Testing). backend-tests and frontend-tests have no `needs:`
+# dependency between them, so GitHub Actions runs them in parallel by default.
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend-tests:
+    name: Backend tests (pytest)
+    runs-on: ubuntu-latest
+
+    # Ephemeral Postgres for this job only — created fresh, destroyed when the job ends.
+    # Tests never connect to the real Supabase database (see backend/tests/conftest.py,
+    # which already isolates each test in a rolled-back transaction on top of that).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      # Never used to make a real network call — verify_access_token()'s JWKS lookup is
+      # mocked in tests (see conftest.py::_patch_jwks); these just need to be non-empty so
+      # Settings validates, and they're what test tokens' iss/aud claims are built from.
+      AUTH0_DOMAIN: test.auth0.local
+      AUTH0_AUDIENCE: https://test-audience
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12.7
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.7" # matches backend/runtime.txt (Render)
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Apply database migrations
+        run: alembic upgrade head
+
+      - name: Run pytest (tenant isolation, RBAC, business rules — 64 tests)
+        run: pytest -v --color=yes
+
+  frontend-tests:
+    name: Frontend tests + build (Vitest)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          # No .nvmrc/engines field exists to pin this — inferred from @types/node's major
+          # version in package.json. Consider adding an explicit pin for precision.
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Vitest suite (role-based UI and RBAC edge cases)
+        run: npm run test
+
+      - name: Build (catches TypeScript/build errors before Vercel would)
+        run: npm run build
