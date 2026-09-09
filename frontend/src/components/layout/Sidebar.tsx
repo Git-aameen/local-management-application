@@ -5,6 +5,7 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
+  Star,
   Users,
 } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
@@ -16,6 +17,7 @@ const BASE_NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/employees', label: 'Employees', icon: Users },
   { to: '/positions', label: 'Positions', icon: Briefcase },
+  { to: '/grades', label: 'Grades', icon: Star },
   { to: '/products', label: 'Products', icon: Package },
 ]
 

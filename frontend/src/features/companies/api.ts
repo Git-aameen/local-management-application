@@ -11,6 +11,15 @@ export async function listCompanies(client: AxiosInstance): Promise<Company[]> {
   return res.data.data.items
 }
 
+// The current user's own company (id, name) — the super_admin-only /api/v1/companies and
+// /api/v1/companies/{id} endpoints are never appropriate here, since a regular tenant role
+// (admin/hr_manager/inventory_manager/employee) isn't allowed to call them. company_id is
+// derived server-side from the caller's own JWT, so there's nothing to pass in here.
+export async function getMyCompany(client: AxiosInstance): Promise<Company> {
+  const res = await client.get('/api/v1/me/company')
+  return res.data.data
+}
+
 export async function createCompany(
   client: AxiosInstance,
   input: CompanyCreateInput,

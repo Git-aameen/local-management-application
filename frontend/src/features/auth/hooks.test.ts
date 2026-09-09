@@ -1,8 +1,10 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { usePermissions } from './hooks'
+import { setActingCompanyId } from '@/lib/actingCompany'
+
+import { getPostLoginRedirectPath, usePermissions } from './hooks'
 
 vi.mock('@auth0/auth0-react', () => ({
   useAuth0: vi.fn(),
@@ -115,4 +117,61 @@ describe('usePermissions', () => {
     expect(result.current.canViewSalary).toBe(false)
     expect(result.current.canManageCompanies).toBe(false)
   })
+
+  describe('acting as company mode', () => {
+    afterEach(() => {
+      setActingCompanyId(null)
+    })
+
+    it('grants a super_admin acting as a company the same permissions a real admin would have', () => {
+      mockRole('super_admin')
+      setActingCompanyId(1)
+      const { result } = renderHook(() => usePermissions())
+      expect(result.current).toEqual({
+        role: 'super_admin',
+        canManageEmployees: true,
+        canManagePositions: true,
+        canManageProducts: true,
+        canViewSalary: true,
+        // identity-based, never granted by acting mode
+        canManageCompanies: true,
+      })
+    })
+
+    it('does not grant tenant permissions to a super_admin with no company selected', () => {
+      mockRole('super_admin')
+      const { result } = renderHook(() => usePermissions())
+      expect(result.current.canManageEmployees).toBe(false)
+      expect(result.current.canManageProducts).toBe(false)
+      expect(result.current.canManagePositions).toBe(false)
+      expect(result.current.canViewSalary).toBe(false)
+    })
+
+    it('never grants extra permissions to a real tenant role, even if acting state is somehow set', () => {
+      mockRole('employee')
+      setActingCompanyId(1)
+      const { result } = renderHook(() => usePermissions())
+      expect(result.current).toEqual({
+        role: 'employee',
+        canManageEmployees: false,
+        canManagePositions: false,
+        canManageProducts: false,
+        canViewSalary: false,
+        canManageCompanies: false,
+      })
+    })
+  })
+})
+
+describe('getPostLoginRedirectPath', () => {
+  it('sends super_admin to /select-company', () => {
+    expect(getPostLoginRedirectPath('super_admin')).toBe('/select-company')
+  })
+
+  it.each(['admin', 'hr_manager', 'inventory_manager', 'employee', null] as const)(
+    'sends %s straight to /dashboard',
+    (role) => {
+      expect(getPostLoginRedirectPath(role)).toBe('/dashboard')
+    },
+  )
 })

@@ -7,7 +7,11 @@ import { getApiErrorMessage } from '@/lib/errors'
 import { EMPLOYEES_QUERY_KEY, POSITIONS_QUERY_KEY } from '@/lib/queryKeys'
 
 import * as api from './api'
-import type { EmployeeCreateInput, EmployeeUpdateInput } from './types'
+import type {
+  EmployeeCreateInput,
+  EmployeeSpecialPermissionsUpdateInput,
+  EmployeeUpdateInput,
+} from './types'
 
 export function useEmployees(page: number, pageSize: number) {
   const client = useApiClient()
@@ -64,6 +68,32 @@ export function useDeleteEmployee() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: EMPLOYEES_QUERY_KEY })
       toast.success('Employee deleted.')
+    },
+    onError: (error) => {
+      showErrorDialog(getApiErrorMessage(error))
+    },
+  })
+}
+
+export function useEmployeeSpecialPermissions(employeeId: number) {
+  const client = useApiClient()
+  return useQuery({
+    queryKey: [...EMPLOYEES_QUERY_KEY, employeeId, 'special-permissions'],
+    queryFn: () => api.getEmployeeSpecialPermissions(client, employeeId),
+  })
+}
+
+export function useUpdateEmployeeSpecialPermissions(employeeId: number) {
+  const client = useApiClient()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: EmployeeSpecialPermissionsUpdateInput) =>
+      api.updateEmployeeSpecialPermissions(client, employeeId, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [...EMPLOYEES_QUERY_KEY, employeeId, 'special-permissions'],
+      })
+      toast.success('Special permissions updated.')
     },
     onError: (error) => {
       showErrorDialog(getApiErrorMessage(error))

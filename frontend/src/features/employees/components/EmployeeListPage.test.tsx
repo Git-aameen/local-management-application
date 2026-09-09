@@ -2,12 +2,24 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useMyPermissions } from '@/features/auth/hooks'
+
 import { EmployeeListPage } from './EmployeeListPage'
 import { useDeleteEmployee, useEmployees, usePositions } from '../hooks'
 
 vi.mock('@auth0/auth0-react', () => ({
   useAuth0: vi.fn(),
 }))
+
+// usePermissions() (canManageEmployees) is left real, driven by the mocked useAuth0() user
+// object, same as every other role-based UI test in this codebase. can_view_salary
+// specifically now comes from useMyPermissions() (a real backend call — see its docstring
+// in features/auth/hooks.ts), which has no meaning in a component test with no
+// QueryClient/network, so only that one export is mocked here.
+vi.mock('@/features/auth/hooks', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/auth/hooks')>()
+  return { ...actual, useMyPermissions: vi.fn() }
+})
 
 vi.mock('../hooks', () => ({
   useEmployees: vi.fn(),
@@ -21,6 +33,19 @@ function mockRole(role: string | undefined) {
   vi.mocked(useAuth0).mockReturnValue({
     user: role ? { [ROLE_CLAIM]: role } : undefined,
   } as ReturnType<typeof useAuth0>)
+  // Mirrors the backend's role-only OR logic (no position/grade grant in play here) — see
+  // SALARY_VIEWER_ROLES in app/core/dependencies.py.
+  vi.mocked(useMyPermissions).mockReturnValue({
+    data: {
+      role: role ?? '',
+      can_manage_employees: false,
+      can_manage_products: false,
+      can_manage_positions: false,
+      can_view_salary: role === 'admin' || role === 'hr_manager',
+    },
+    isLoading: false,
+    isError: false,
+  } as unknown as ReturnType<typeof useMyPermissions>)
 }
 
 beforeEach(() => {

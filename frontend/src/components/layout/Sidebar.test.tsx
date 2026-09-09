@@ -51,12 +51,13 @@ describe('Sidebar Companies link visibility', () => {
     }
   })
 
-  it('always shows Dashboard/Employees/Positions/Products regardless of role', () => {
+  it('always shows Dashboard/Employees/Positions/Grades/Products regardless of role', () => {
     mockRole('super_admin')
     renderSidebar()
     expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /employees/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /positions/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /grades/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /products/i })).toBeInTheDocument()
   })
 })

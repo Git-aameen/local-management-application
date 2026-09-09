@@ -47,7 +47,7 @@ describe('CompanyListPage role-based UI', () => {
     expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
   })
 
-  it('fails closed and hides New/Edit when the role claim is missing', () => {
+  it('fails closed and hides New/Edit when there is no token at all', () => {
     mockRole(undefined)
     render(<CompanyListPage />)
     expect(screen.queryByRole('button', { name: /new company/i })).not.toBeInTheDocument()

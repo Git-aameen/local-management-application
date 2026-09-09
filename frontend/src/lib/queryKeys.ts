@@ -4,6 +4,10 @@
 // the same key here is what makes a newly created position show up immediately in the
 // Employee form's position dropdown, with no extra plumbing needed.
 export const POSITIONS_QUERY_KEY = ['positions'] as const
+export const GRADES_QUERY_KEY = ['grades'] as const
 export const EMPLOYEES_QUERY_KEY = ['employees'] as const
 export const PRODUCTS_QUERY_KEY = ['products'] as const
 export const COMPANIES_QUERY_KEY = ['companies'] as const
+export const MY_COMPANY_QUERY_KEY = ['me', 'company'] as const
+export const MY_SUMMARY_QUERY_KEY = ['me', 'summary'] as const
+export const MY_PERMISSIONS_QUERY_KEY = ['me', 'permissions'] as const

@@ -1,12 +1,14 @@
 import { useAuth0 } from '@auth0/auth0-react'
+import { useQuery } from '@tanstack/react-query'
 
-// Must match app/core/security.py's ROLE_CLAIM exactly — same namespaced custom claim,
-// read here from the ID token (useAuth0().user) rather than the access token. This
-// requires the Auth0 Action to set the claim on both tokens, which is the standard/
-// recommended pattern for Auth0 Actions that set custom claims (typically
-// `api.idToken.setCustomClaim(...)` alongside `api.accessToken.setCustomClaim(...)`); if
-// this app's Action only sets it on the access token, `user` here won't carry it and every
-// permission below will correctly fail closed to read-only.
+import { useActingCompanyId } from '@/lib/actingCompany'
+import { useApiClient } from '@/lib/apiClient'
+import { MY_PERMISSIONS_QUERY_KEY } from '@/lib/queryKeys'
+
+import { getMyPermissions } from './api'
+
+// Must match app/core/security.py's claim constants exactly — these are namespaced custom
+// claims Auth0 adds to the ID token via a Post-Login Action, not standard OIDC claims.
 const ROLE_CLAIM = 'https://localmanagementapp.com/role'
 
 // admin/hr_manager/inventory_manager/employee are tenant-scoped roles (a company_id claim
@@ -55,18 +57,56 @@ export interface Permissions {
  * Fails closed: if the role claim is missing, malformed, or not one of the five known
  * roles, `role` is null and every permission below is false — never falls back to full
  * access.
+ *
+ * "Act as company" mode (see lib/actingCompany.ts and CLAUDE.md § Authentication &
+ * Authorization): while a super_admin has chosen a company via /select-company, the four
+ * tenant-scoped booleans below light up exactly as they would for a real "admin" of that
+ * company — mirroring get_effective_role() on the backend — so the SAME Employees/Products/
+ * Positions pages, unchanged, naturally show their CRUD controls. `role` itself is
+ * deliberately NOT overridden to "admin": it stays "super_admin" so identity-based checks
+ * (canManageCompanies, and useMyCompany()'s own enabled gate) are unaffected by acting mode.
  */
 export function usePermissions(): Permissions {
   const { user } = useAuth0()
   const rawRole = user?.[ROLE_CLAIM]
   const role: Role | null = isKnownRole(rawRole) ? rawRole : null
+  const actingCompanyId = useActingCompanyId()
+  const isActingAsAdmin = role === 'super_admin' && actingCompanyId !== null
 
   return {
     role,
-    canManageEmployees: role === 'admin' || role === 'hr_manager',
-    canManagePositions: role === 'admin' || role === 'hr_manager',
-    canManageProducts: role === 'admin' || role === 'inventory_manager',
-    canViewSalary: role === 'admin' || role === 'hr_manager',
+    canManageEmployees: role === 'admin' || role === 'hr_manager' || isActingAsAdmin,
+    canManagePositions: role === 'admin' || role === 'hr_manager' || isActingAsAdmin,
+    canManageProducts: role === 'admin' || role === 'inventory_manager' || isActingAsAdmin,
+    canViewSalary: role === 'admin' || role === 'hr_manager' || isActingAsAdmin,
     canManageCompanies: role === 'super_admin',
   }
+}
+
+/**
+ * Where to send the user immediately after a successful login — no intermediate landing
+ * page or button click. super_admin has no company of its own to land a dashboard on, so it
+ * goes to /select-company first; every other role (including an unrecognized/missing one,
+ * which fails closed the same way the rest of this module does) goes straight to /dashboard.
+ */
+export function getPostLoginRedirectPath(role: Role | null): string {
+  return role === 'super_admin' ? '/select-company' : '/dashboard'
+}
+
+/**
+ * Backend-derived effective permissions (GET /api/v1/me/permissions) — unlike
+ * usePermissions() above (a pure client-side ID token read), this reflects the real
+ * position/grade-derived OR logic for can_view_salary: (role is admin/hr_manager) OR (the
+ * caller's own position's can_view_salary, defaulted from a Grade — see
+ * app/models/grade.py). Used specifically for salary visibility (EmployeeListPage's salary
+ * column, EmployeeFormDialog's salary field) since that's the one permission that can't be
+ * computed from the token alone. The other three can_manage_* flags keep coming from
+ * usePermissions() everywhere else — this hook is not a wholesale replacement for it.
+ */
+export function useMyPermissions() {
+  const client = useApiClient()
+  return useQuery({
+    queryKey: MY_PERMISSIONS_QUERY_KEY,
+    queryFn: () => getMyPermissions(client),
+  })
 }

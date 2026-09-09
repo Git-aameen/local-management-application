@@ -2,9 +2,26 @@ import { useAuth0 } from '@auth0/auth0-react'
 import axios from 'axios'
 import { useEffect } from 'react'
 
+import { markAccountNotProvisioned } from '@/lib/accountProvisioning'
+import { getActingCompanyId } from '@/lib/actingCompany'
+
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
 })
+
+// A JWT with a real role/company_id is still not enough on its own — the backend also
+// requires a matching Employee record and fails closed with 403 ACCOUNT_NOT_PROVISIONED
+// otherwise (see CLAUDE.md § Multi-Tenant Rules). That can come back from almost any
+// protected call, so it's handled once here rather than in every hook's onError.
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.data?.error?.code === 'ACCOUNT_NOT_PROVISIONED') {
+      markAccountNotProvisioned()
+    }
+    return Promise.reject(error)
+  },
+)
 
 // useApiClient() is called from many independent hooks (useEmployees, useDeletePosition,
 // etc.), often several at once on the same page. Registering a fresh
@@ -29,6 +46,14 @@ function ensureAuthInterceptor() {
     if (latestTokenGetter) {
       const token = await latestTokenGetter()
       config.headers.Authorization = `Bearer ${token}`
+    }
+    // Only meaningful for a super_admin token — the backend silently ignores this header
+    // for every other role (see get_acting_company_id in app/core/dependencies.py), so
+    // attaching it unconditionally here is safe: it's a no-op unless the caller is a
+    // super_admin who has picked a company on /select-company.
+    const actingCompanyId = getActingCompanyId()
+    if (actingCompanyId !== null) {
+      config.headers['X-Acting-Company-Id'] = String(actingCompanyId)
     }
     return config
   })

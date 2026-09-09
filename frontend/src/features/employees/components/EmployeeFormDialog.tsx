@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Controller, type Resolver, useForm } from 'react-hook-form'
+import { Controller, type Resolver, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -19,10 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { usePermissions } from '@/features/auth/hooks'
+import { useMyPermissions } from '@/features/auth/hooks'
 
+import { SpecialPermissionsSection } from './SpecialPermissionsSection'
 import { useCreateEmployee, usePositions, useUpdateEmployee } from '../hooks'
-import type { Employee } from '../types'
+import type { Employee, PositionGradePermissions } from '../types'
 
 const baseEmployeeSchema = z.object({
   full_name: z.string().trim().min(1, 'Full name is required'),
@@ -42,6 +44,13 @@ const employeeSchemaWithSalary = baseEmployeeSchema.extend({
 // this is now independent of create-vs-edit mode (see EmployeeFormDialog below).
 type FormValues = z.infer<typeof baseEmployeeSchema> & { salary?: number }
 
+const GRADE_PERMISSION_LABELS: Array<{ key: keyof PositionGradePermissions; label: string }> = [
+  { key: 'can_manage_employees', label: 'Manage employees' },
+  { key: 'can_manage_products', label: 'Manage products' },
+  { key: 'can_manage_positions', label: 'Manage positions' },
+  { key: 'can_view_salary', label: 'View salary' },
+]
+
 interface EmployeeFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -50,8 +59,16 @@ interface EmployeeFormDialogProps {
 }
 
 export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: EmployeeFormDialogProps) {
-  const { canViewSalary } = usePermissions()
+  // Backend-derived, not the plain JWT-decode usePermissions() — see useMyPermissions()'s
+  // docstring for why salary specifically needs the real OR logic with the caller's own
+  // position/grade-derived grant. Defaults to false while loading — fail closed.
+  const { data: myPermissions } = useMyPermissions()
+  const canViewSalary = myPermissions?.can_view_salary ?? false
   const { data: positions, isLoading: positionsLoading } = usePositions()
+  // Alphabetical by name — the order positions come back in from the API is otherwise just
+  // insertion order, which isn't a meaningful sort for a picker with more than a handful of
+  // options. A fresh array, never mutating the query cache's own data.
+  const sortedPositions = [...(positions ?? [])].sort((a, b) => a.name.localeCompare(b.name))
   const createEmployee = useCreateEmployee()
   const updateEmployee = useUpdateEmployee()
 
@@ -82,6 +99,9 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
             ...(canViewSalary ? { salary: 0 } : {}),
           },
   })
+
+  const selectedPositionId = useWatch({ control, name: 'position_id' })
+  const selectedPosition = sortedPositions.find((position) => position.id === selectedPositionId)
 
   async function onSubmit(values: FormValues) {
     try {
@@ -160,7 +180,7 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {positions?.map((position) => (
+                    {sortedPositions.map((position) => (
                       <SelectItem key={position.id} value={String(position.id)}>
                         {position.name}
                       </SelectItem>
@@ -176,6 +196,38 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
             )}
             {errors.position_id && (
               <p className="text-sm text-destructive">{errors.position_id.message}</p>
+            )}
+
+            {selectedPosition && (
+              <div className="rounded-md border bg-muted/30 p-2">
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  Baseline permissions from this position&apos;s grade
+                </p>
+                {(() => {
+                  const granted = GRADE_PERMISSION_LABELS.filter(
+                    ({ key }) => selectedPosition.grade_permissions?.[key],
+                  )
+                  if (!selectedPosition.grade_permissions) {
+                    return (
+                      <p className="text-xs text-muted-foreground">
+                        No grade assigned — no baseline permissions.
+                      </p>
+                    )
+                  }
+                  if (granted.length === 0) {
+                    return <p className="text-xs text-muted-foreground">No extra permissions.</p>
+                  }
+                  return (
+                    <div className="flex flex-wrap gap-1">
+                      {granted.map(({ key, label }) => (
+                        <Badge key={key} variant="secondary">
+                          {label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
             )}
           </div>
 
@@ -218,6 +270,15 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
             </Button>
           </DialogFooter>
         </form>
+
+        {/* Its own resource (GET/PUT .../special-permissions), independent of the employee
+            fields above — a separate mini-form, not part of the <form> submit above. Hidden
+            entirely (not just disabled) unless the viewer satisfies
+            require_admin_role_or_admin_grade() server-side; only meaningful once the
+            employee already exists. */}
+        {mode === 'edit' && employee && myPermissions?.can_manage_special_permissions && (
+          <SpecialPermissionsSection employeeId={employee.id} />
+        )}
       </DialogContent>
     </Dialog>
   )
