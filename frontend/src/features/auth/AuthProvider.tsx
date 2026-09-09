@@ -12,7 +12,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clientId={clientId}
       authorizationParams={{
         audience,
-        redirect_uri: window.location.origin,
+        // Must land on /login, not "/" — "/" unconditionally redirects to /login
+        // (see App.tsx) before Auth0Provider's mount-time effect gets a chance to read
+        // the code/state query params off the URL, which would otherwise strip them and
+        // leave isAuthenticated permanently false after a successful login.
+        redirect_uri: `${window.location.origin}/login`,
       }}
     >
       {children}
