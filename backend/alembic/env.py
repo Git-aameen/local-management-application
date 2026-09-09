@@ -14,7 +14,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.core.config import get_settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
-from app.models import company, employee, position, product  # noqa: E402,F401
+from app.models import (  # noqa: E402,F401
+    company,
+    employee,
+    employee_special_permission,
+    grade,
+    position,
+    product,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
