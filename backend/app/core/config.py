@@ -10,7 +10,13 @@ class Settings(BaseSettings):
 
     database_url: str
     # RS256 JWT verification only needs the domain (for the issuer/JWKS URL) and audience —
-    # no client secret. The backend never performs the OAuth flow itself (see CLAUDE.md).
+    # no client secret is required. The backend never performs the OAuth flow itself; the
+    # frontend authenticates via Auth0's hosted Universal Login (Authorization Code + PKCE)
+    # and only ever hands this backend an already-issued access token to verify (see
+    # CLAUDE.md § Authentication & Authorization). A brief detour through a custom
+    # email/password login endpoint (Resource Owner Password Grant, requiring
+    # AUTH0_CLIENT_ID/AUTH0_CLIENT_SECRET here) was tried and then reverted — see
+    # backend/.env.example for the historical note.
     auth0_domain: str
     auth0_audience: str
     # Comma-separated list of frontend origins CORSMiddleware should allow (see main.py).

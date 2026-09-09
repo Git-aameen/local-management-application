@@ -1,12 +1,13 @@
 import logging
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import auth, companies, employees, positions, products
+from app.api.v1 import auth, companies, employees, grades, me, positions, products
 from app.core.config import get_settings
+from app.core.dependencies import get_current_employee_context
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +20,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(companies.router, prefix="/api/v1")
-app.include_router(positions.router, prefix="/api/v1")
-app.include_router(employees.router, prefix="/api/v1")
-app.include_router(products.router, prefix="/api/v1")
+# get_current_employee_context is a REQUIRED gate (see its docstring): every non-super_admin
+# token must have a matching Employee record, or every route below rejects it with 403
+# ACCOUNT_NOT_PROVISIONED before its own handler ever runs — reading data requires a
+# provisioned account too, not just writing it (CLAUDE.md § Multi-Tenant Rules). Declaring it
+# once per include_router() call (rather than on every individual endpoint) is what makes
+# "ALL protected endpoints" actually true here; FastAPI resolves/caches it once per request
+# regardless of how many places reference it, so this doesn't cost an extra DB query on the
+# write endpoints that also depend on it directly via require_role_or_position_permission().
+_require_provisioned_account = [Depends(get_current_employee_context)]
+
+app.include_router(companies.router, prefix="/api/v1", dependencies=_require_provisioned_account)
+app.include_router(positions.router, prefix="/api/v1", dependencies=_require_provisioned_account)
+app.include_router(grades.router, prefix="/api/v1", dependencies=_require_provisioned_account)
+app.include_router(employees.router, prefix="/api/v1", dependencies=_require_provisioned_account)
+app.include_router(products.router, prefix="/api/v1", dependencies=_require_provisioned_account)
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(me.router, prefix="/api/v1", dependencies=_require_provisioned_account)
 
 
 @app.exception_handler(HTTPException)
@@ -35,6 +48,10 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     return JSONResponse(
         status_code=exc.status_code,
         content={"success": False, "data": None, "error": {"code": code, "message": message}},
+        # Forward any headers the raiser attached to the exception (e.g. WWW-Authenticate
+        # on a 401) — building a fresh JSONResponse here instead of letting FastAPI's
+        # default handler run means those are otherwise silently dropped.
+        headers=exc.headers,
     )
 
 

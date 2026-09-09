@@ -21,6 +21,7 @@ import time
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
+from uuid import uuid4
 
 import jwt
 import pytest
@@ -32,10 +33,11 @@ from sqlalchemy.pool import NullPool
 
 import app.core.security as security_module
 from app.core.config import get_settings
-from app.core.security import COMPANY_ID_CLAIM, ROLE_CLAIM
+from app.core.security import COMPANY_ID_CLAIM, EMAIL_CLAIM, ROLE_CLAIM
 from app.db.session import get_db
 from app.models.company import Company
 from app.models.employee import Employee
+from app.models.grade import Grade
 from app.models.position import Position
 from app.models.product import Product
 from main import app
@@ -127,6 +129,48 @@ async def client(db_session):
 
 
 @pytest_asyncio.fixture
+async def provisioned_headers(db_session):
+    """Factory fixture: `await provisioned_headers(role, company_id)` -> headers dict.
+
+    get_current_employee_context() is now a REQUIRED gate (see app/core/dependencies.py):
+    any of the four tenant roles (not super_admin) must have a matching Employee record or
+    every protected endpoint rejects them with 403 ACCOUNT_NOT_PROVISIONED, before role or
+    tenant-isolation logic is ever reached. This is what most RBAC/tenant-isolation tests
+    should call instead of bare auth_headers() now — it creates a throwaway, grade-less
+    Position (so it never masquerades as a grade-derived permission grant — see
+    test_grade_and_special_permissions.py for tests that want one) + Employee row in the
+    given company, with a fresh random email each call, then returns auth_headers() for a
+    token matching that email.
+    """
+
+    async def _make(
+        role: str,
+        company_id: int,
+        **extra_claims: object,
+    ) -> dict[str, str]:
+        position = Position(company_id=company_id, name="Test Caller Position")
+        db_session.add(position)
+        await db_session.commit()
+        await db_session.refresh(position)
+
+        employee = Employee(
+            company_id=company_id,
+            position_id=position.id,
+            full_name="Test Caller",
+            salary=Decimal("50000.00"),
+            hired_at=date(2024, 1, 1),
+            email=f"caller-{uuid4().hex[:10]}@example.com",
+        )
+        db_session.add(employee)
+        await db_session.commit()
+        await db_session.refresh(employee)
+
+        return auth_headers(role, company_id, **{EMAIL_CLAIM: employee.email}, **extra_claims)
+
+    return _make
+
+
+@pytest_asyncio.fixture
 async def company_a(db_session):
     company = Company(name="Test Company A")
     db_session.add(company)
@@ -160,6 +204,38 @@ async def position_b(db_session, company_b):
     await db_session.commit()
     await db_session.refresh(position)
     return position
+
+
+@pytest_asyncio.fixture
+async def grade_a(db_session, company_a):
+    grade = Grade(
+        company_id=company_a.id,
+        code="M",
+        name="Manager",
+        level=2,
+        can_manage_employees=True,
+        can_manage_products=True,
+    )
+    db_session.add(grade)
+    await db_session.commit()
+    await db_session.refresh(grade)
+    return grade
+
+
+@pytest_asyncio.fixture
+async def grade_b(db_session, company_b):
+    grade = Grade(
+        company_id=company_b.id,
+        code="M",
+        name="Manager",
+        level=2,
+        can_manage_employees=True,
+        can_manage_products=True,
+    )
+    db_session.add(grade)
+    await db_session.commit()
+    await db_session.refresh(grade)
+    return grade
 
 
 @pytest_asyncio.fixture

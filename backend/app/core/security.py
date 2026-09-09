@@ -8,6 +8,13 @@ from app.core.config import get_settings
 # tenant-scoping and RBAC data. Auth0 requires custom claim names to be namespaced URIs.
 COMPANY_ID_CLAIM = "https://localmanagementapp.com/company_id"
 ROLE_CLAIM = "https://localmanagementapp.com/role"
+# Access tokens minted for a custom API audience never carry standard OIDC profile claims
+# (like a plain "email") automatically — only explicitly added custom claims survive, and
+# Auth0 requires those to be namespaced URIs, same as company_id/role above. The Auth0
+# Action sets this one via api.accessToken.setCustomClaim(EMAIL_CLAIM, event.user.email).
+# Used by get_current_employee_context() to match the token to an Employee row (see
+# app/core/dependencies.py).
+EMAIL_CLAIM = "https://localmanagementapp.com/email"
 
 _settings = get_settings()
 _ISSUER = f"https://{_settings.auth0_domain}/"

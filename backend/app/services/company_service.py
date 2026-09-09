@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.company import Company
 from app.schemas.company import CompanyCreate, CompanyUpdate
+from app.services import grade_service
 
 
 async def list_companies(db: AsyncSession, page: int, page_size: int) -> tuple[list[Company], int]:
@@ -20,6 +21,8 @@ async def get_company(db: AsyncSession, company_id: int) -> Company | None:
 async def create_company(db: AsyncSession, payload: CompanyCreate) -> Company:
     company = Company(name=payload.name)
     db.add(company)
+    await db.flush()  # assigns company.id, needed by seed_default_grades below
+    await grade_service.seed_default_grades(db, company.id)
     await db.commit()
     await db.refresh(company)
     return company

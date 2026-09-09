@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_claims, require_role
+from app.core.dependencies import require_role
 from app.db.session import get_db
 from app.schemas.common import ApiResponse, PaginatedResponse
 from app.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
@@ -9,13 +9,14 @@ from app.services import company_service
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
-# Companies has no company_id column to scope by (it IS the tenant table), so unlike
-# Positions/Employees/Products it only requires authentication on reads, not a specific
-# company. Writes (creating/renaming a tenant) are restricted to super_admin — a
-# platform-operator role, entirely separate from a tenant's own admin/hr_manager/
-# inventory_manager/employee roles. A regular per-company "admin" must NOT be able to
-# create or rename companies; that was a real gap (require_role(["admin"]) previously)
-# since "admin" is scoped to one tenant, not the platform.
+# Companies has no company_id column to scope by (it IS the tenant table). The entire
+# resource — reads included, not just writes — is a platform-operator (super_admin)
+# concern: browsing the full list of tenants, or looking up any one of them by id, is not
+# something a regular per-company admin/hr_manager/inventory_manager/employee should ever
+# be able to do (CLAUDE.md: "super_admin ... used only by platform operators managing the
+# Companies (tenants) resource itself"). A tenant user who needs their OWN company's basic
+# info (id, name) should call GET /api/v1/me/company instead (app/api/v1/me.py), which
+# derives the company_id from the JWT server-side rather than accepting one from the client.
 
 
 @router.get("", response_model=ApiResponse[PaginatedResponse[CompanyResponse]])
@@ -23,7 +24,7 @@ async def list_companies(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_claims),
+    _role: str = Depends(require_role(["super_admin"])),
 ) -> ApiResponse[PaginatedResponse[CompanyResponse]]:
     companies, total = await company_service.list_companies(db, page, page_size)
     return ApiResponse(
@@ -40,7 +41,7 @@ async def list_companies(
 async def get_company(
     company_id: int,
     db: AsyncSession = Depends(get_db),
-    _claims: dict = Depends(get_current_claims),
+    _role: str = Depends(require_role(["super_admin"])),
 ) -> ApiResponse[CompanyResponse]:
     company = await company_service.get_company(db, company_id)
     if company is None:
