@@ -3,8 +3,8 @@ import type { AxiosInstance } from 'axios'
 import type {
   Employee,
   EmployeeCreateInput,
-  EmployeeSpecialPermissions,
-  EmployeeSpecialPermissionsUpdateInput,
+  EmployeePermissionOverride,
+  EmployeePermissionOverrideUpdateInput,
   EmployeeUpdateInput,
   Paginated,
   Position,
@@ -49,23 +49,23 @@ export async function deleteEmployee(client: AxiosInstance, id: number): Promise
   await client.delete(`/api/v1/employees/${id}`)
 }
 
-// Restricted server-side to callers who are system role "admin" or hold an Admin-grade
-// ("A") position — see require_admin_role_or_admin_grade() in app/core/dependencies.py.
-// The frontend never enforces this itself; it just hides the section using
-// useMyPermissions().can_manage_special_permissions (see SpecialPermissionsSection.tsx).
-export async function getEmployeeSpecialPermissions(
+// Restricted server-side to callers whose own Position grants manage_special_permissions
+// — see require_position_permission() in app/core/dependencies.py. The frontend never
+// enforces this itself; it just hides the section using
+// useMyPermissions().manage_special_permissions (see PermissionOverrideSection.tsx).
+export async function getEmployeePermissionOverride(
   client: AxiosInstance,
   employeeId: number,
-): Promise<EmployeeSpecialPermissions> {
+): Promise<EmployeePermissionOverride> {
   const res = await client.get(`/api/v1/employees/${employeeId}/special-permissions`)
   return res.data.data
 }
 
-export async function updateEmployeeSpecialPermissions(
+export async function updateEmployeePermissionOverride(
   client: AxiosInstance,
   employeeId: number,
-  input: EmployeeSpecialPermissionsUpdateInput,
-): Promise<EmployeeSpecialPermissions> {
+  input: EmployeePermissionOverrideUpdateInput,
+): Promise<EmployeePermissionOverride> {
   const res = await client.put(`/api/v1/employees/${employeeId}/special-permissions`, input)
   return res.data.data
 }

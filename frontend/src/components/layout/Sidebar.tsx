@@ -5,23 +5,28 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
-  Star,
   Users,
 } from 'lucide-react'
+import type { ComponentType } from 'react'
 import { NavLink } from 'react-router-dom'
 
-import { usePermissions } from '@/features/auth/hooks'
+import { useMyPermissions, usePermissions } from '@/features/auth/hooks'
 import { cn } from '@/lib/utils'
 
-const BASE_NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/employees', label: 'Employees', icon: Users },
-  { to: '/positions', label: 'Positions', icon: Briefcase },
-  { to: '/grades', label: 'Grades', icon: Star },
-  { to: '/products', label: 'Products', icon: Package },
-]
+const NO_ACCESS_TITLE = 'ไม่มีสิทธิ์เข้าถึง'
 
-const COMPANIES_NAV_ITEM = { to: '/companies', label: 'Companies', icon: Building2 }
+interface NavItem {
+  to: string
+  label: string
+  icon: ComponentType<{ className?: string }>
+  /** Omitted (undefined) means always enabled — Dashboard and Products have no access
+   * restriction of their own (Products stays view-for-everyone; only its New/Edit/Delete
+   * controls are role-gated, inside the page itself — see ProductListPage.tsx). When
+   * present and false, the item still renders (never hidden) but disabled: reduced
+   * opacity, not-allowed cursor, no navigation, and an aria-disabled + title explaining why
+   * — for a11y and so the module's existence isn't a secret from roles that can't open it. */
+  accessible?: boolean
+}
 
 interface SidebarProps {
   collapsed: boolean
@@ -30,12 +35,26 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { canManageCompanies } = usePermissions()
-  // Companies is a platform-operator (super_admin) concern — hidden for every other role,
-  // including a regular tenant "admin". The other four links stay visible for everyone;
-  // each page hides its own actions per usePermissions() instead of being hidden entirely
-  // (e.g. a super_admin can still open Employees, it'll just show an error/empty state
-  // since their token has no company_id — see CLAUDE.md § Authentication & Authorization).
-  const navItems = canManageCompanies ? [...BASE_NAV_ITEMS, COMPANIES_NAV_ITEM] : BASE_NAV_ITEMS
+  // Employees/Positions access now comes entirely from the caller's own Position
+  // permissions (see useMyPermissions()'s docstring and require_position_permission on the
+  // backend) — not a role check. Defaults to false while loading: fail closed, never show a
+  // module as enabled before we're sure it's allowed.
+  const { data: myPermissions } = useMyPermissions()
+  const canManageEmployees = myPermissions?.manage_employees ?? false
+  const canManagePositions = myPermissions?.manage_positions ?? false
+
+  // Every item always renders, in a fixed order — restricted ones show disabled (not
+  // hidden) when the current caller can't reach that module (see ARCHITECTURE.md §
+  // Role-based UI). Disabling only changes the Sidebar entry itself: the actual boundary
+  // is still enforced by ProtectedRoute's requiredPermission on the route (App.tsx) — a
+  // disabled link alone would do nothing against someone typing the URL directly.
+  const navItems: NavItem[] = [
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/employees', label: 'Employees', icon: Users, accessible: canManageEmployees },
+    { to: '/positions', label: 'Positions', icon: Briefcase, accessible: canManagePositions },
+    { to: '/products', label: 'Products', icon: Package },
+    { to: '/companies', label: 'Companies', icon: Building2, accessible: canManageCompanies },
+  ]
 
   return (
     <aside
@@ -55,25 +74,44 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </button>
       </div>
       <nav className="flex flex-1 flex-col gap-1 p-2">
-        {navItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            title={collapsed ? label : undefined}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150',
-                collapsed && 'justify-center',
-                isActive
-                  ? 'bg-accent text-accent-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-              )
-            }
-          >
-            <Icon className="size-4 shrink-0" />
-            {!collapsed && <span>{label}</span>}
-          </NavLink>
-        ))}
+        {navItems.map(({ to, label, icon: Icon, accessible }) => {
+          if (accessible === false) {
+            return (
+              <span
+                key={to}
+                aria-disabled="true"
+                title={NO_ACCESS_TITLE}
+                className={cn(
+                  'flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground opacity-50',
+                  collapsed && 'justify-center',
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                {!collapsed && <span>{label}</span>}
+              </span>
+            )
+          }
+
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              title={collapsed ? label : undefined}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150',
+                  collapsed && 'justify-center',
+                  isActive
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                )
+              }
+            >
+              <Icon className="size-4 shrink-0" />
+              {!collapsed && <span>{label}</span>}
+            </NavLink>
+          )
+        })}
       </nav>
     </aside>
   )

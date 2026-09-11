@@ -22,9 +22,9 @@ import {
 } from '@/components/ui/select'
 import { useMyPermissions } from '@/features/auth/hooks'
 
-import { SpecialPermissionsSection } from './SpecialPermissionsSection'
+import { PermissionOverrideSection } from './PermissionOverrideSection'
 import { useCreateEmployee, usePositions, useUpdateEmployee } from '../hooks'
-import type { Employee, PositionGradePermissions } from '../types'
+import type { Employee, Position } from '../types'
 
 const baseEmployeeSchema = z.object({
   full_name: z.string().trim().min(1, 'Full name is required'),
@@ -44,11 +44,12 @@ const employeeSchemaWithSalary = baseEmployeeSchema.extend({
 // this is now independent of create-vs-edit mode (see EmployeeFormDialog below).
 type FormValues = z.infer<typeof baseEmployeeSchema> & { salary?: number }
 
-const GRADE_PERMISSION_LABELS: Array<{ key: keyof PositionGradePermissions; label: string }> = [
-  { key: 'can_manage_employees', label: 'Manage employees' },
-  { key: 'can_manage_products', label: 'Manage products' },
-  { key: 'can_manage_positions', label: 'Manage positions' },
-  { key: 'can_view_salary', label: 'View salary' },
+const POSITION_PERMISSION_LABELS: Array<{ key: keyof Position; label: string }> = [
+  { key: 'manage_employees', label: 'Manage employees' },
+  { key: 'manage_products', label: 'Manage products' },
+  { key: 'manage_positions', label: 'Manage positions' },
+  { key: 'view_salary', label: 'View salary' },
+  { key: 'manage_special_permissions', label: 'Manage special permissions' },
 ]
 
 interface EmployeeFormDialogProps {
@@ -59,11 +60,11 @@ interface EmployeeFormDialogProps {
 }
 
 export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: EmployeeFormDialogProps) {
-  // Backend-derived, not the plain JWT-decode usePermissions() — see useMyPermissions()'s
-  // docstring for why salary specifically needs the real OR logic with the caller's own
-  // position/grade-derived grant. Defaults to false while loading — fail closed.
+  // Backend-derived (see useMyPermissions()'s docstring) — the caller's own Position/Grade
+  // permission is the sole source of truth for salary visibility now, not a JWT role check.
+  // Defaults to false while loading — fail closed.
   const { data: myPermissions } = useMyPermissions()
-  const canViewSalary = myPermissions?.can_view_salary ?? false
+  const canViewSalary = myPermissions?.view_salary ?? false
   const { data: positions, isLoading: positionsLoading } = usePositions()
   // Alphabetical by name — the order positions come back in from the API is otherwise just
   // insertion order, which isn't a meaningful sort for a picker with more than a handful of
@@ -201,21 +202,12 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
             {selectedPosition && (
               <div className="rounded-md border bg-muted/30 p-2">
                 <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-                  Baseline permissions from this position&apos;s grade
+                  This position&apos;s permissions
                 </p>
                 {(() => {
-                  const granted = GRADE_PERMISSION_LABELS.filter(
-                    ({ key }) => selectedPosition.grade_permissions?.[key],
-                  )
-                  if (!selectedPosition.grade_permissions) {
-                    return (
-                      <p className="text-xs text-muted-foreground">
-                        No grade assigned — no baseline permissions.
-                      </p>
-                    )
-                  }
+                  const granted = POSITION_PERMISSION_LABELS.filter(({ key }) => selectedPosition[key])
                   if (granted.length === 0) {
-                    return <p className="text-xs text-muted-foreground">No extra permissions.</p>
+                    return <p className="text-xs text-muted-foreground">No permissions granted.</p>
                   }
                   return (
                     <div className="flex flex-wrap gap-1">
@@ -273,11 +265,11 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
 
         {/* Its own resource (GET/PUT .../special-permissions), independent of the employee
             fields above — a separate mini-form, not part of the <form> submit above. Hidden
-            entirely (not just disabled) unless the viewer satisfies
-            require_admin_role_or_admin_grade() server-side; only meaningful once the
-            employee already exists. */}
-        {mode === 'edit' && employee && myPermissions?.can_manage_special_permissions && (
-          <SpecialPermissionsSection employeeId={employee.id} />
+            entirely (not just disabled) unless the viewer's own Position grants
+            manage_special_permissions server-side; only meaningful once the employee
+            already exists. */}
+        {mode === 'edit' && employee && myPermissions?.manage_special_permissions && (
+          <PermissionOverrideSection employeeId={employee.id} />
         )}
       </DialogContent>
     </Dialog>

@@ -1,48 +1,44 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, ForeignKeyConstraint, Index, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 
 
 class Position(Base):
-    """Company-defined job title (e.g. "Senior Accountant"). HR data only — unrelated to Auth0-based RBAC.
+    """Company-defined job title (e.g. "Senior Accountant") that ALSO carries its own five
+    permission flags directly (see CLAUDE.md § Authentication & Authorization) — there is no
+    more shared "Grade" tier to reference; each Position is configured independently. These
+    flags are the sole source of truth for what an employee in this Position can manage
+    (app/core/dependencies.py::get_current_employee_context /
+    require_position_permission), on top of which an individual employee may additionally
+    be granted extra access via
+    app/models/employee_permission_override.py::EmployeePermissionOverride — a purely
+    additive, purely optional, per-employee exception.
 
-    A Position carries no permissions of its own anymore — it only references a Grade via
-    grade_code, a COMPOSITE foreign key (company_id, grade_code) -> grades(company_id, code)
-    — see app/models/grade.py, which now uses that composite (company_id, code) as its own
-    primary key instead of a surrogate id. ON UPDATE CASCADE is configured on this
-    constraint: renaming a grade's code updates every Position referencing it automatically
-    at the database level, never silently orphaning a position. All grade-derived permission
-    comes from that Grade's four can_* flags directly, re-evaluated live at request time
-    (see app/core/dependencies.py::get_current_employee_context) — editing a Grade
-    immediately changes the effective permissions of every Position (and therefore every
-    Employee) linked to it. An individual employee needing MORE than their role/grade allow
-    is granted that instead via
-    app/models/employee_special_permission.py::EmployeeSpecialPermission, a purely additive
-    per-employee grant — see CLAUDE.md § Authentication & Authorization.
+    manage_special_permissions replaced the old "Admin-grade ('A') position" check that
+    used to gate GET/PUT /api/v1/employees/{id}/special-permissions — it's just another flag
+    on this same Position now, not a magic grade code.
 
-    A former free-text, unmapped `grade_code` column (holding values like "M1", "S2" from
-    before Grade existed as a real table) occupied this same column name previously and has
-    been dropped — this grade_code is an unrelated, newly (re)introduced column that happens
-    to share that name, now serving as half of the composite FK described above.
+    Previously referenced a "Grade" row live via a composite FK (company_id, grade_code);
+    Grade has been retired entirely and its flags folded directly into this table (see the
+    merge_grade_into_position_and_drop_grades_table migration). The "can_" prefix these five
+    columns originally carried was dropped in drop_can_prefix_from_position_permission_columns
+    — a pure naming cleanup, no behavior change.
     """
 
     __tablename__ = "positions"
-    __table_args__ = (
-        Index("ix_positions_company_id", "company_id"),
-        Index("ix_positions_company_id_grade_code", "company_id", "grade_code"),
-        ForeignKeyConstraint(
-            ["company_id", "grade_code"],
-            ["grades.company_id", "grades.code"],
-            name="fk_positions_company_id_grade_code_grades",
-            onupdate="CASCADE",
-        ),
-    )
+    __table_args__ = (Index("ix_positions_company_id", "company_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    grade_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    manage_employees: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    manage_products: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    manage_positions: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    view_salary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    manage_special_permissions: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

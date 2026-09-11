@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { queryClient } from '@/lib/queryClient'
 import {
   EMPLOYEES_QUERY_KEY,
-  GRADES_QUERY_KEY,
   MY_PERMISSIONS_QUERY_KEY,
   MY_SUMMARY_QUERY_KEY,
   POSITIONS_QUERY_KEY,
@@ -21,16 +20,15 @@ type Listener = (companyId: number | null) => void
 let actingCompanyId: number | null = null
 const listeners = new Set<Listener>()
 
-// Employees/Products/Positions/Grades/summary are all scoped by whichever company is
-// currently active, but their React Query cache keys don't encode that — they never needed
-// to before acting mode existed, since a session only ever had one company for its whole
-// lifetime. Switching companies therefore has to explicitly invalidate them here, or the UI
-// would go on showing the previous company's cached data until some unrelated refetch happened.
+// Employees/Products/Positions/summary are all scoped by whichever company is currently
+// active, but their React Query cache keys don't encode that — they never needed to before
+// acting mode existed, since a session only ever had one company for its whole lifetime.
+// Switching companies therefore has to explicitly invalidate them here, or the UI would go
+// on showing the previous company's cached data until some unrelated refetch happened.
 function invalidateCompanyScopedQueries() {
   queryClient.invalidateQueries({ queryKey: EMPLOYEES_QUERY_KEY })
   queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY })
   queryClient.invalidateQueries({ queryKey: POSITIONS_QUERY_KEY })
-  queryClient.invalidateQueries({ queryKey: GRADES_QUERY_KEY })
   queryClient.invalidateQueries({ queryKey: MY_SUMMARY_QUERY_KEY })
   queryClient.invalidateQueries({ queryKey: MY_PERMISSIONS_QUERY_KEY })
 }

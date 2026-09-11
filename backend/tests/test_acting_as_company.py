@@ -29,7 +29,7 @@ class TestNonSuperAdminHeaderIsIgnored:
     async def test_created_record_belongs_to_own_company_not_header_value(
         self, client, company_a, company_b, position_a, provisioned_headers
     ):
-        headers = await provisioned_headers("hr_manager", company_a.id)
+        headers = await provisioned_headers("hr_manager", company_a.id, manage_employees=True)
         headers[ACTING_HEADER] = str(company_b.id)
 
         resp = await client.post(
@@ -127,6 +127,23 @@ class TestSuperAdminActingAsCompany:
         )
         assert resp.status_code == 403
         assert resp.json()["error"]["code"] == "SUPER_ADMIN_NO_TENANT_ACCESS"
+
+    async def test_my_permissions_reports_all_true_while_acting(self, client, company_a):
+        """get_current_employee_context() always reports all-False for a super_admin (it's
+        never a real employee of the acted-on company, by design) — GET /api/v1/me/permissions
+        must not blindly forward that while acting, or the frontend would hide every manage
+        control an acting super_admin can actually use (see require_position_permission's own
+        acting-mode bypass, which this mirrors)."""
+        resp = await client.get(
+            "/api/v1/me/permissions",
+            headers={**auth_headers("super_admin"), ACTING_HEADER: str(company_a.id)},
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["manage_employees"] is True
+        assert data["manage_products"] is True
+        assert data["manage_positions"] is True
+        assert data["view_salary"] is True
 
     async def test_my_summary_reflects_acting_company(
         self, client, company_a, employee_a, position_a, product_a

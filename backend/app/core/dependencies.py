@@ -1,31 +1,16 @@
 from collections.abc import Iterable
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import COMPANY_ID_CLAIM, EMAIL_CLAIM, ROLE_CLAIM, verify_access_token
 from app.db.session import get_db
 from app.models.employee import Employee
-from app.models.employee_special_permission import EmployeeSpecialPermission
-from app.models.grade import Grade
+from app.models.employee_permission_override import EmployeePermissionOverride
 from app.models.position import Position
-
-# The one grade code that grants access to a fellow employee's special-permissions record
-# (see require_admin_role_or_admin_grade below) — a deliberate, hardcoded convention (not a
-# configurable flag on Grade), matching CLAUDE.md § Authentication & Authorization exactly.
-ADMIN_GRADE_CODE = "A"
-
-# Shared role sets for each resource's write endpoints — the single source of truth used
-# both to enforce access (require_role_or_position_permission(...) calls in
-# app/api/v1/{employees,positions,products}.py) and to report it back to the frontend
-# (app/api/v1/me.py). Keeping these in one place means the two can never drift apart.
-EMPLOYEE_MANAGER_ROLES = ("admin", "hr_manager")
-PRODUCT_MANAGER_ROLES = ("admin", "inventory_manager")
-POSITION_MANAGER_ROLES = ("admin", "hr_manager")
-SALARY_VIEWER_ROLES = ("admin", "hr_manager")
 
 # auto_error=False so a missing header raises our own 401 in the standard {code, message}
 # error shape below, instead of FastAPI/Starlette's default 403 "Not authenticated".
@@ -33,6 +18,7 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_claims(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> dict:
     """Extract the JWT from the Authorization: Bearer header and verify it against Auth0."""
@@ -45,7 +31,12 @@ def get_current_claims(
             },
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return verify_access_token(credentials.credentials)
+    claims = verify_access_token(credentials.credentials)
+    # Stashed so main.py's unhandled_exception_handler can log company_id/email context for
+    # any error raised later in this same request, without re-decoding the token itself
+    # (CLAUDE.md § Error Handling & Logging: include company_id/user_id/request_id in logs).
+    request.state.claims = claims
+    return claims
 
 
 def get_current_company_id(claims: dict = Depends(get_current_claims)) -> int:
@@ -80,19 +71,18 @@ def get_current_company_id(claims: dict = Depends(get_current_claims)) -> int:
         ) from exc
 
 
-def get_current_role(claims: dict = Depends(get_current_claims)) -> str:
-    """The authenticated user's role, from the verified JWT (admin/hr_manager/inventory_manager/employee)."""
-    role = claims.get(ROLE_CLAIM)
-    if not role:
-        raise HTTPException(
-            status_code=401,
-            detail={"code": "MISSING_ROLE_CLAIM", "message": "Token is missing the role claim."},
-        )
-    return role
+def get_current_role(claims: dict = Depends(get_current_claims)) -> str | None:
+    """The role claim, present ONLY on super_admin tokens now (see CLAUDE.md §
+    Authentication & Authorization) — a tenant user's token carries no role claim at all
+    anymore, identified solely by its company_id/email claims instead (see
+    get_current_employee_context below). Returns None for every tenant user; the ONLY
+    meaningful comparison anywhere in this codebase is `role == "super_admin"`.
+    """
+    return claims.get(ROLE_CLAIM)
 
 
 def get_acting_company_id(
-    role: str = Depends(get_current_role),
+    role: str | None = Depends(get_current_role),
     x_acting_company_id: str | None = Header(default=None, alias="X-Acting-Company-Id"),
 ) -> int | None:
     """The company_id a super_admin has chosen to "act as" (see CLAUDE.md § Authentication &
@@ -140,26 +130,30 @@ def get_effective_company_id(
 
 
 def get_effective_role(
-    role: str = Depends(get_current_role),
+    role: str | None = Depends(get_current_role),
     acting_company_id: int | None = Depends(get_acting_company_id),
-) -> str:
+) -> str | None:
     """The role a request should be authorized as: "admin" while a super_admin is acting as
-    a company (full CRUD, matching a real admin of that company — see
-    CLAUDE.md § Authentication & Authorization), otherwise exactly the JWT's own role,
-    unchanged. Use this instead of get_current_role wherever a permission check should
-    respect acting-as-company mode (require_role_or_position_permission below).
+    a company, otherwise exactly the JWT's own role (None for every tenant user — see
+    get_current_role). Reported by GET /api/v1/me/permissions for display purposes;
+    require_position_permission() below deliberately checks get_acting_company_id() directly
+    instead, since it needs "is this an acting super_admin" on its own, not folded into a
+    role string.
     """
     return "admin" if acting_company_id is not None else role
 
 
 def require_role(allowed_roles: Iterable[str]):
     """Dependency factory gating an endpoint to specific roles (see CLAUDE.md § Authentication & Authorization).
+    The only remaining caller is POST/PUT /api/v1/companies (require_role(["super_admin"])) —
+    every tenant-scoped module now uses require_position_permission() below instead, since
+    tenant users no longer carry a role claim at all.
 
-    Usage: `_role: str = Depends(require_role(["admin", "hr_manager"]))`.
+    Usage: `_role: str = Depends(require_role(["super_admin"]))`.
     """
     allowed = set(allowed_roles)
 
-    def _check_role(role: str = Depends(get_current_role)) -> str:
+    def _check_role(role: str | None = Depends(get_current_role)) -> str | None:
         if role not in allowed:
             raise HTTPException(
                 status_code=403,
@@ -174,24 +168,29 @@ def require_role(allowed_roles: Iterable[str]):
 
 
 class EmployeePermissions(BaseModel):
-    """Combined grade- and special-permission-derived flags for the current token's matching
-    Employee record — see app/models/grade.py, app/models/employee_special_permission.py,
-    and CLAUDE.md § Authentication & Authorization. Each flag here is
-    (the employee's position's Grade allows it) OR (the employee's own
-    EmployeeSpecialPermission record allows it, if one exists) — computed once in
-    get_current_employee_context() below.
+    """Combined Position- and override-derived flags for the current token's matching
+    Employee record — see app/models/position.py, app/models/employee_permission_override.py,
+    and CLAUDE.md § Authentication & Authorization. Each of the first four flags here is
+    (the employee's own Position allows it) OR (the employee's own EmployeePermissionOverride
+    record allows it, if one exists and that flag isn't None) — computed once in
+    get_current_employee_context() below. manage_special_permissions has no override
+    counterpart — it comes from the Position alone.
 
     get_current_employee_context() only ever returns this for a super_admin token (all False
     — it has no company/Employee by design) or for a token with a real, matched Employee
-    row; any other case is a 403 ACCOUNT_NOT_PROVISIONED, not a value of this type. This type
-    is purely ADDITIVE: it's one input to require_role_or_position_permission()'s OR check
-    below, never used on its own to restrict anything a role-based check would allow.
+    row; any other case is a 403 ACCOUNT_NOT_PROVISIONED, not a value of this type. This is
+    the SOLE source of truth for manage access to Employees/Positions/Products (see
+    require_position_permission() below) — the JWT role plays no part in that decision
+    (it's used only to establish identity/tenant membership via get_current_employee_context's
+    fail-closed gate, and separately for the platform-level super_admin/Companies concern,
+    which is unrelated and unchanged).
     """
 
-    can_manage_employees: bool = False
-    can_manage_products: bool = False
-    can_manage_positions: bool = False
-    can_view_salary: bool = False
+    manage_employees: bool = False
+    manage_products: bool = False
+    manage_positions: bool = False
+    view_salary: bool = False
+    manage_special_permissions: bool = False
 
 
 async def get_current_employee_context(
@@ -203,19 +202,20 @@ async def get_current_employee_context(
     rejected outright with 403 ACCOUNT_NOT_PROVISIONED — fail closed, not fail open. An
     unprovisioned account must not be able to read company data either, not just write it
     (see CLAUDE.md § Multi-Tenant Rules), so this is wired as a router-level dependency on
-    every protected router (companies/positions/employees/products/grades/me — see main.py),
-    not just on the write endpoints that separately consume its return value via
-    require_role_or_position_permission() below.
+    every protected router (companies/positions/employees/products/me — see main.py), not
+    just on the write endpoints that separately consume its return value via
+    require_position_permission() below.
 
     super_admin is exempt entirely: it has no company_id and no Employee record by design
     (see get_current_company_id), so it skips this check and gets an empty (all-False)
-    EmployeePermissions back rather than being evaluated against it.
+    EmployeePermissions back rather than being evaluated against it — see
+    require_position_permission()'s own acting-as-company handling for why that doesn't
+    strand a super_admin using X-Acting-Company-Id with no way to manage anything.
 
-    Combines TWO additive sources, per-flag: the employee's position's Grade (joined live —
-    editing a Grade immediately changes this for everyone on it, see app/models/grade.py)
-    OR the employee's own EmployeeSpecialPermission row, if one exists. Neither source can
-    ever take access away from the other or from the role-based check in
-    require_role_or_position_permission() — this function only ever adds.
+    Combines TWO additive sources, per-flag: the employee's own Position (its five
+    permission columns directly — no more live Grade join, Grade has been retired) OR the
+    employee's own EmployeePermissionOverride row, if one exists and that particular flag
+    isn't None.
     """
     if claims.get(ROLE_CLAIM) == "super_admin":
         return EmployeePermissions()
@@ -233,17 +233,14 @@ async def get_current_employee_context(
             result = await db.execute(
                 select(
                     Employee.id,
-                    Grade.can_manage_employees,
-                    Grade.can_manage_products,
-                    Grade.can_manage_positions,
-                    Grade.can_view_salary,
+                    Position.manage_employees,
+                    Position.manage_products,
+                    Position.manage_positions,
+                    Position.view_salary,
+                    Position.manage_special_permissions,
                 )
                 .select_from(Employee)
                 .join(Position, Employee.position_id == Position.id)
-                .outerjoin(
-                    Grade,
-                    and_(Position.company_id == Grade.company_id, Position.grade_code == Grade.code),
-                )
                 .where(Employee.company_id == company_id, Employee.email == email)
             )
             row = result.first()
@@ -260,129 +257,59 @@ async def get_current_employee_context(
             },
         )
 
-    special_result = await db.execute(
+    override_result = await db.execute(
         select(
-            EmployeeSpecialPermission.can_manage_employees,
-            EmployeeSpecialPermission.can_manage_products,
-            EmployeeSpecialPermission.can_manage_positions,
-            EmployeeSpecialPermission.can_view_salary,
-        ).where(EmployeeSpecialPermission.employee_id == row.id)
+            EmployeePermissionOverride.manage_employees,
+            EmployeePermissionOverride.manage_products,
+            EmployeePermissionOverride.manage_positions,
+            EmployeePermissionOverride.view_salary,
+        ).where(EmployeePermissionOverride.employee_id == row.id)
     )
-    special = special_result.first()
+    override = override_result.first()
 
     return EmployeePermissions(
-        can_manage_employees=bool(row.can_manage_employees) or bool(special and special.can_manage_employees),
-        can_manage_products=bool(row.can_manage_products) or bool(special and special.can_manage_products),
-        can_manage_positions=bool(row.can_manage_positions) or bool(special and special.can_manage_positions),
-        can_view_salary=bool(row.can_view_salary) or bool(special and special.can_view_salary),
+        manage_employees=bool(row.manage_employees) or bool(override and override.manage_employees),
+        manage_products=bool(row.manage_products) or bool(override and override.manage_products),
+        manage_positions=bool(row.manage_positions) or bool(override and override.manage_positions),
+        view_salary=bool(row.view_salary) or bool(override and override.view_salary),
+        manage_special_permissions=bool(row.manage_special_permissions),
     )
 
 
-def require_role_or_position_permission(allowed_roles: Iterable[str], permission: str):
-    """Like require_role(), but ADDITIVELY also allows the request through if the caller's
-    Employee/Position grants the given permission flag (see get_current_employee_context) —
-    an OR, never a replacement: any role in allowed_roles is always still sufficient on its
-    own, exactly as require_role() alone would allow. `permission` must name one of
-    EmployeePermissions' boolean fields (e.g. "can_manage_employees").
+def require_position_permission(permission: str):
+    """Sole gate on Employees/Positions/Products manage endpoints (create/update/delete) and
+    on GET/PUT /api/v1/employees/{id}/special-permissions (via "manage_special_permissions")
+    — see CLAUDE.md § Authentication & Authorization. The JWT role plays NO part in this
+    decision: access is decided entirely by the caller's own Position (or
+    EmployeePermissionOverride, for the four flags that have one) via
+    get_current_employee_context(). `permission` must name one of EmployeePermissions'
+    boolean fields.
 
-    Checks the EFFECTIVE role (get_effective_role), not the raw JWT role: a super_admin
-    acting as a company (X-Acting-Company-Id, see get_acting_company_id) is evaluated here
-    as "admin", matching what a real admin of that company could do. For every other role
-    this is identical to the JWT's own role — acting mode changes nothing for them.
+    The one deliberate exception: a super_admin currently acting as a company
+    (X-Acting-Company-Id, see get_acting_company_id) is granted every permission
+    unconditionally. get_current_employee_context() always returns an all-False
+    EmployeePermissions for a super_admin token — it's never a real employee of the
+    acted-on company, by design, and that exemption is NOT changed here — so without this
+    check "act as company" mode would silently lose all its manage capability (a regression
+    of an already-shipped feature), leaving it able to view but never create/update/delete
+    anything. Checking get_acting_company_id() directly (rather than get_effective_role())
+    keeps privilege-escalation logic in that one function, exactly as every other
+    acting-mode-aware dependency in this module already does.
 
-    Usage: `_role: str = Depends(require_role_or_position_permission(EMPLOYEE_MANAGER_ROLES, "can_manage_employees"))`.
+    Usage: `_perm: None = Depends(require_position_permission("manage_employees"))`.
     """
-    allowed = set(allowed_roles)
 
     async def _check(
-        role: str = Depends(get_effective_role),
         employee_permissions: EmployeePermissions = Depends(get_current_employee_context),
-    ) -> str:
-        if role in allowed or getattr(employee_permissions, permission, False):
-            return role
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "code": "FORBIDDEN",
-                "message": (
-                    f"This action requires one of the following roles: {', '.join(sorted(allowed))} "
-                    "(or an equivalent position permission)."
-                ),
-            },
-        )
-
-    return _check
-
-
-async def _caller_has_admin_grade_position(claims: dict, db: AsyncSession) -> bool:
-    """True if the token's own Employee record (matched by email, within the token's own
-    company_id — raw JWT claims, never the acting-as company) sits in a Position graded
-    exactly ADMIN_GRADE_CODE ("A"). Used only by get_can_manage_special_permissions below.
-    """
-    email = claims.get(EMAIL_CLAIM)
-    raw_company_id = claims.get(COMPANY_ID_CLAIM)
-    if not email or raw_company_id is None:
-        return False
-    try:
-        company_id = int(raw_company_id)
-    except (TypeError, ValueError):
-        return False
-
-    result = await db.execute(
-        select(Grade.code)
-        .select_from(Employee)
-        .join(Position, Employee.position_id == Position.id)
-        .join(
-            Grade,
-            and_(Position.company_id == Grade.company_id, Position.grade_code == Grade.code),
-        )
-        .where(Employee.company_id == company_id, Employee.email == email)
-    )
-    return result.scalar_one_or_none() == ADMIN_GRADE_CODE
-
-
-async def get_can_manage_special_permissions(
-    role: str = Depends(get_effective_role),
-    claims: dict = Depends(get_current_claims),
-    db: AsyncSession = Depends(get_db),
-) -> bool:
-    """Whether the CURRENT caller is allowed to view/edit ANY employee's special-permissions
-    record (see GET/PUT /api/v1/employees/{id}/special-permissions) — EITHER:
-      a) effective role exactly "admin" (get_effective_role — so a super_admin acting as a
-         company is treated as admin here too, consistent with every other acting-mode
-         check in this module), OR
-      b) their own Employee record's Position is graded "A" (ADMIN_GRADE_CODE), regardless
-         of system role.
-    A simple OR between the two — either alone is sufficient, matching CLAUDE.md §
-    Authentication & Authorization exactly. Note this checks the CALLER's own grade, an
-    entirely different question from the flags that endpoint reads/writes for the TARGET
-    employee — an admin-grade caller doesn't need special_permissions of their own to manage
-    someone else's.
-
-    Returns a plain bool rather than raising, so it doubles as the source of truth both for
-    require_admin_role_or_admin_grade() below (the actual enforcement gate) and for
-    GET /api/v1/me/permissions' can_manage_special_permissions field, which is what the
-    frontend consults to decide whether to render the Special Permissions section at all
-    (see EmployeeFormDialog.tsx) — the two can never drift apart.
-    """
-    return role == "admin" or await _caller_has_admin_grade_position(claims, db)
-
-
-def require_admin_role_or_admin_grade():
-    """Gates GET/PUT /api/v1/employees/{id}/special-permissions (see app/api/v1/employees.py)
-    on get_can_manage_special_permissions above."""
-
-    async def _check(can_manage: bool = Depends(get_can_manage_special_permissions)) -> None:
-        if can_manage:
+        acting_company_id: int | None = Depends(get_acting_company_id),
+    ) -> None:
+        if acting_company_id is not None or getattr(employee_permissions, permission, False):
             return
         raise HTTPException(
             status_code=403,
             detail={
-                "code": "FORBIDDEN",
-                "message": (
-                    "Managing an employee's special permissions requires the admin role or "
-                    "an Admin-grade (\"A\") position."
-                ),
+                "code": "POSITION_PERMISSION_DENIED",
+                "message": f"Your position does not grant {permission}.",
             },
         )
 

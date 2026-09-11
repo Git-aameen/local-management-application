@@ -2,12 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import (
-    EMPLOYEE_MANAGER_ROLES,
-    POSITION_MANAGER_ROLES,
-    PRODUCT_MANAGER_ROLES,
-    SALARY_VIEWER_ROLES,
     EmployeePermissions,
-    get_can_manage_special_permissions,
+    get_acting_company_id,
     get_current_company_id,
     get_current_employee_context,
     get_effective_company_id,
@@ -25,32 +21,38 @@ router = APIRouter(prefix="/me", tags=["me"])
 
 @router.get("/permissions", response_model=ApiResponse[EffectivePermissionsResponse])
 async def get_my_permissions(
-    role: str = Depends(get_effective_role),
+    role: str | None = Depends(get_effective_role),
     employee_permissions: EmployeePermissions = Depends(get_current_employee_context),
-    can_manage_special_permissions: bool = Depends(get_can_manage_special_permissions),
+    acting_company_id: int | None = Depends(get_acting_company_id),
 ) -> ApiResponse[EffectivePermissionsResponse]:
-    """Effective (role OR grade OR special-permission) permissions for the current user.
-    Works for super_admin too (role="super_admin", every flag False —
-    get_current_employee_context() never raises for a token with no company_id, it just
-    reports no extra permissions), and reflects acting-as-company mode: a super_admin
-    sending X-Acting-Company-Id is reported here as role="admin" with every flag True,
-    matching get_effective_role (app/core/dependencies.py).
+    """Position-derived permissions for the current user — the JWT role plays no part in
+    any of the five manage_*/view_salary flags below (see require_position_permission
+    in app/core/dependencies.py, the actual enforcement these mirror exactly, so the two can
+    never drift apart). `role` is still reported for display purposes and identity checks
+    unrelated to these flags (e.g. the frontend's super_admin/Companies handling); it's None
+    for every tenant user now, since only super_admin tokens carry a role claim at all.
 
-    can_manage_special_permissions is a DIFFERENT question from the four can_manage_*/
-    can_view_salary flags above — it's whether the caller may view/edit ANY employee's
-    special-permissions record at all (GET/PUT /api/v1/employees/{id}/special-permissions),
-    not a permission that's itself granted by role/grade/special-permissions. The frontend
-    uses it to decide whether to render the Special Permissions section on the Employee edit
-    view (see EmployeeFormDialog.tsx).
+    manage_special_permissions is whether the caller may view/edit ANY employee's
+    special-permissions record at all (GET/PUT /api/v1/employees/{id}/special-permissions) —
+    just another Position flag now, with no override counterpart (see
+    app/models/employee_permission_override.py). The frontend uses it to decide whether to
+    render the Special Permissions section on the Employee edit view (EmployeeFormDialog.tsx).
+
+    Acting-as-company mode: a super_admin sending X-Acting-Company-Id gets every flag True
+    here, matching what require_position_permission() actually allows for them — without
+    this, get_current_employee_context() would otherwise report all-False for a super_admin
+    (it's never a real employee of the acted-on company, by design), which would make the
+    frontend hide every manage control an acting super_admin can actually use.
     """
+    is_acting = acting_company_id is not None
     return ApiResponse(
         data=EffectivePermissionsResponse(
             role=role,
-            can_manage_employees=role in EMPLOYEE_MANAGER_ROLES or employee_permissions.can_manage_employees,
-            can_manage_products=role in PRODUCT_MANAGER_ROLES or employee_permissions.can_manage_products,
-            can_manage_positions=role in POSITION_MANAGER_ROLES or employee_permissions.can_manage_positions,
-            can_view_salary=role in SALARY_VIEWER_ROLES or employee_permissions.can_view_salary,
-            can_manage_special_permissions=can_manage_special_permissions,
+            manage_employees=is_acting or employee_permissions.manage_employees,
+            manage_products=is_acting or employee_permissions.manage_products,
+            manage_positions=is_acting or employee_permissions.manage_positions,
+            view_salary=is_acting or employee_permissions.view_salary,
+            manage_special_permissions=is_acting or employee_permissions.manage_special_permissions,
         )
     )
 

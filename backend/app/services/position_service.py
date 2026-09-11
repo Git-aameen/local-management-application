@@ -2,7 +2,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
-from app.models.grade import Grade
 from app.models.position import Position
 from app.schemas.position import PositionCreate, PositionUpdate
 
@@ -20,20 +19,6 @@ class PositionInUseError(Exception):
 
     def __init__(self, employee_count: int):
         self.employee_count = employee_count
-
-
-class InvalidGradeError(Exception):
-    """Raised when a position's grade_code doesn't exist or belongs to a different company —
-    grade_code must never be trusted blindly, same rule as employee.position_id (see
-    app/services/employee_service.py::InvalidPositionError)."""
-
-
-async def _assert_grade_belongs_to_company(db: AsyncSession, company_id: int, code: str) -> None:
-    result = await db.execute(
-        select(Grade.code).where(Grade.code == code, Grade.company_id == company_id)
-    )
-    if result.scalar_one_or_none() is None:
-        raise InvalidGradeError()
 
 
 async def list_positions(
@@ -60,12 +45,14 @@ async def get_position(db: AsyncSession, company_id: int, position_id: int) -> P
 
 
 async def create_position(db: AsyncSession, company_id: int, payload: PositionCreate) -> Position:
-    if payload.grade_code is not None:
-        await _assert_grade_belongs_to_company(db, company_id, payload.grade_code)
     position = Position(
         company_id=company_id,
         name=payload.name,
-        grade_code=payload.grade_code,
+        manage_employees=payload.manage_employees,
+        manage_products=payload.manage_products,
+        manage_positions=payload.manage_positions,
+        view_salary=payload.view_salary,
+        manage_special_permissions=payload.manage_special_permissions,
     )
     db.add(position)
     await db.commit()
@@ -81,9 +68,16 @@ async def update_position(
         return None
     if payload.name is not None:
         position.name = payload.name
-    if payload.grade_code is not None:
-        await _assert_grade_belongs_to_company(db, company_id, payload.grade_code)
-        position.grade_code = payload.grade_code
+    if payload.manage_employees is not None:
+        position.manage_employees = payload.manage_employees
+    if payload.manage_products is not None:
+        position.manage_products = payload.manage_products
+    if payload.manage_positions is not None:
+        position.manage_positions = payload.manage_positions
+    if payload.view_salary is not None:
+        position.view_salary = payload.view_salary
+    if payload.manage_special_permissions is not None:
+        position.manage_special_permissions = payload.manage_special_permissions
     await db.commit()
     await db.refresh(position)
     return position

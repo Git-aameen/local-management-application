@@ -3,6 +3,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -12,29 +13,28 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { useGrades } from '@/features/grades/hooks'
 
 import { useCreatePosition, useUpdatePosition } from '../hooks'
 import type { Position } from '../types'
 
-// Sentinel for "no grade selected" in the dropdown below — never a real grade code (those
-// are short, user-chosen strings like "S"/"M"/"HR"/"A"), so it's safe as a Select item value
-// distinct from any of them.
-const NO_GRADE_VALUE = '__none__'
-
 const positionSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  grade_code: z.string(),
+  manage_employees: z.boolean(),
+  manage_products: z.boolean(),
+  manage_positions: z.boolean(),
+  view_salary: z.boolean(),
+  manage_special_permissions: z.boolean(),
 })
 
 type PositionFormValues = z.infer<typeof positionSchema>
+
+const PERMISSION_CHECKBOXES: Array<{ name: keyof Omit<PositionFormValues, 'name'>; label: string }> = [
+  { name: 'manage_employees', label: 'Can manage employees' },
+  { name: 'manage_products', label: 'Can manage products' },
+  { name: 'manage_positions', label: 'Can manage positions' },
+  { name: 'view_salary', label: 'Can view salary' },
+  { name: 'manage_special_permissions', label: "Can manage employees' special permissions" },
+]
 
 interface PositionFormDialogProps {
   open: boolean
@@ -43,14 +43,12 @@ interface PositionFormDialogProps {
   position?: Position
 }
 
-// A Position carries no permissions of its own anymore — it only references a Grade.
-// Permission comes live from that Grade at request time (see app/models/grade.py and
-// app/core/dependencies.py::get_current_employee_context), so there's nothing left here to
-// pre-fill or leave individually editable per-position; an employee needing more than their
-// role/grade allow gets that via the Special Permissions section on their own Employee edit
-// view instead (see EmployeeFormDialog.tsx).
+// Each Position is configured with its own five permission flags directly now — there is no
+// more shared "Grade" to pick from a dropdown (see CLAUDE.md § Authentication &
+// Authorization). An individual employee needing more than their Position allows is granted
+// that instead via the Special Permissions section on their own Employee edit view (see
+// EmployeeFormDialog.tsx).
 export function PositionFormDialog({ open, onOpenChange, mode, position }: PositionFormDialogProps) {
-  const { data: grades, isLoading: gradesLoading } = useGrades()
   const createPosition = useCreatePosition()
   const updatePosition = useUpdatePosition()
 
@@ -64,20 +62,30 @@ export function PositionFormDialog({ open, onOpenChange, mode, position }: Posit
     resolver: zodResolver(positionSchema),
     values:
       mode === 'edit' && position
-        ? { name: position.name, grade_code: position.grade_code ?? NO_GRADE_VALUE }
-        : { name: '', grade_code: NO_GRADE_VALUE },
+        ? {
+            name: position.name,
+            manage_employees: position.manage_employees,
+            manage_products: position.manage_products,
+            manage_positions: position.manage_positions,
+            view_salary: position.view_salary,
+            manage_special_permissions: position.manage_special_permissions,
+          }
+        : {
+            name: '',
+            manage_employees: false,
+            manage_products: false,
+            manage_positions: false,
+            view_salary: false,
+            manage_special_permissions: false,
+          },
   })
 
   async function onSubmit(values: PositionFormValues) {
     try {
-      const payload = {
-        name: values.name,
-        grade_code: values.grade_code === NO_GRADE_VALUE ? null : values.grade_code,
-      }
       if (mode === 'create') {
-        await createPosition.mutateAsync(payload)
+        await createPosition.mutateAsync(values)
       } else if (position) {
-        await updatePosition.mutateAsync({ id: position.id, input: payload })
+        await updatePosition.mutateAsync({ id: position.id, input: values })
       }
       onOpenChange(false)
       reset()
@@ -112,32 +120,26 @@ export function PositionFormDialog({ open, onOpenChange, mode, position }: Posit
             {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="grade_code">Grade</Label>
-            <Controller
-              name="grade_code"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={gradesLoading}>
-                  <SelectTrigger id="grade_code">
-                    <SelectValue placeholder={gradesLoading ? 'Loading grades…' : 'No grade'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_GRADE_VALUE}>No grade</SelectItem>
-                    {grades?.map((grade) => (
-                      <SelectItem key={grade.code} value={grade.code}>
-                        {grade.code} — {grade.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {grades && grades.length === 0 && !gradesLoading && (
-              <p className="text-sm text-muted-foreground">
-                No grades yet for this company — create one on the Grades page first.
-              </p>
-            )}
+          <div className="flex flex-col gap-2">
+            <Label>Permissions</Label>
+            {PERMISSION_CHECKBOXES.map(({ name, label }) => (
+              <div key={name} className="flex items-center gap-2">
+                <Controller
+                  name={name}
+                  control={control}
+                  render={({ field }) => (
+                    <Checkbox
+                      id={name}
+                      checked={field.value}
+                      onCheckedChange={(checked) => field.onChange(checked === true)}
+                    />
+                  )}
+                />
+                <Label htmlFor={name} className="font-normal">
+                  {label}
+                </Label>
+              </div>
+            ))}
           </div>
 
           <DialogFooter>

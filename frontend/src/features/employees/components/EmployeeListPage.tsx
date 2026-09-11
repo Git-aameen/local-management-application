@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useMyPermissions, usePermissions } from '@/features/auth/hooks'
+import { useMyPermissions } from '@/features/auth/hooks'
 import { formatCurrency } from '@/lib/formatters'
 
 import { EmployeeFormDialog } from './EmployeeFormDialog'
@@ -28,14 +28,14 @@ export function EmployeeListPage() {
   >(null)
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null)
 
-  const { canManageEmployees } = usePermissions()
-  // canViewSalary specifically comes from the backend (see useMyPermissions), not the plain
-  // JWT-decode usePermissions() above — it must reflect the OR logic with the caller's own
-  // position/grade-derived grant, which the frontend has no other way to know (CLAUDE.md §
-  // Authentication & Authorization). Defaults to false while loading — fail closed, never
-  // show salary before we're sure it's allowed.
+  // Both come from the backend (see useMyPermissions) — the caller's own Position
+  // permissions are the sole source of truth for manage access and salary visibility alike
+  // now (CLAUDE.md § Authentication & Authorization), not a JWT role check. Default to
+  // false while loading — fail closed, never show a manage control or salary before we're
+  // sure it's allowed.
   const { data: myPermissions } = useMyPermissions()
-  const canViewSalary = myPermissions?.can_view_salary ?? false
+  const canManageEmployees = myPermissions?.manage_employees ?? false
+  const canViewSalary = myPermissions?.view_salary ?? false
   const { data, isLoading, isError } = useEmployees(page, PAGE_SIZE)
   const { data: positions } = usePositions()
   const deleteEmployee = useDeleteEmployee()

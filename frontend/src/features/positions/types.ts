@@ -1,30 +1,32 @@
-// Read-only snapshot of the position's linked Grade's permission flags (see
-// backend/app/schemas/position.py::PositionGradePermissions) — null if the position has no
-// grade. Always reflects the Grade's current flags, fetched fresh alongside the Position.
-export interface PositionGradePermissions {
-  can_manage_employees: boolean
-  can_manage_products: boolean
-  can_manage_positions: boolean
-  can_view_salary: boolean
-}
-
+// A Position carries its own five permission flags directly (see
+// backend/app/models/position.py and CLAUDE.md § Authentication & Authorization) — there is
+// no more shared "Grade" concept; each Position is configured independently.
 export interface Position {
   id: number
   company_id: number
   name: string
-  // Half of a composite foreign key (company_id, grade_code) -> grades(company_id, code) —
-  // see backend/app/models/position.py. No numeric grade id exists server-side anymore.
-  grade_code: string | null
-  grade_permissions: PositionGradePermissions | null
+  manage_employees: boolean
+  manage_products: boolean
+  manage_positions: boolean
+  view_salary: boolean
+  manage_special_permissions: boolean
   created_at: string
 }
 
 export interface PositionCreateInput {
   name: string
-  grade_code?: string | null
+  manage_employees?: boolean
+  manage_products?: boolean
+  manage_positions?: boolean
+  view_salary?: boolean
+  manage_special_permissions?: boolean
 }
 
 export interface PositionUpdateInput {
   name?: string
-  grade_code?: string | null
+  manage_employees?: boolean
+  manage_products?: boolean
+  manage_positions?: boolean
+  view_salary?: boolean
+  manage_special_permissions?: boolean
 }

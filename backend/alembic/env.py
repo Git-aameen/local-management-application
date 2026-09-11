@@ -17,8 +17,7 @@ from app.db.base import Base  # noqa: E402
 from app.models import (  # noqa: E402,F401
     company,
     employee,
-    employee_special_permission,
-    grade,
+    employee_permission_override,
     position,
     product,
 )

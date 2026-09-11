@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { usePermissions } from '@/features/auth/hooks'
+import { useMyPermissions } from '@/features/auth/hooks'
 
 import { ProductFormDialog } from './ProductFormDialog'
 import { useDeleteProduct, useProductCategories, useProducts } from '../hooks'
@@ -38,7 +38,15 @@ export function ProductListPage() {
   >(null)
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
 
-  const { canManageProducts } = usePermissions()
+  // canManageProducts comes from the backend (see useMyPermissions), not a plain JWT-role
+  // check — it must reflect the OR logic with the caller's own Position (or permission
+  // override) grant (an `employee` whose own Position or override record has
+  // manage_products=true can manage Products too, same as admin/inventory_manager), which
+  // the frontend has no other way to know (CLAUDE.md § Authentication & Authorization).
+  // Defaults to false while loading — fail closed, never show manage controls before we're
+  // sure they're allowed.
+  const { data: myPermissions } = useMyPermissions()
+  const canManageProducts = myPermissions?.manage_products ?? false
   const { data, isLoading, isError } = useProducts(page, PAGE_SIZE, category)
   const { data: categories } = useProductCategories()
   const deleteProduct = useDeleteProduct()

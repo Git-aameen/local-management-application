@@ -35,6 +35,16 @@ function mockRole(role: string) {
   } as unknown as ReturnType<typeof useAuth0>)
 }
 
+function mockNoRoleClaim() {
+  // A real tenant user's token carries no role claim at all now (see CLAUDE.md §
+  // Authentication & Authorization) — usePermissions().role is null for them, never some
+  // other non-null, non-super_admin string.
+  vi.mocked(useAuth0).mockReturnValue({
+    user: { email: 'tenant@example.com' },
+    logout: vi.fn(),
+  } as unknown as ReturnType<typeof useAuth0>)
+}
+
 function renderPage() {
   render(
     <MemoryRouter initialEntries={['/select-company']}>
@@ -68,6 +78,13 @@ describe('SelectCompanyPage', () => {
 
   it('bounces a non-super_admin straight to the dashboard instead of showing the gate', () => {
     mockRole('admin')
+    renderPage()
+    expect(screen.getByText('Dashboard Page')).toBeInTheDocument()
+    expect(screen.queryByText('Select a Company')).not.toBeInTheDocument()
+  })
+
+  it('bounces a tenant user with no role claim at all straight to the dashboard too', () => {
+    mockNoRoleClaim()
     renderPage()
     expect(screen.getByText('Dashboard Page')).toBeInTheDocument()
     expect(screen.queryByText('Select a Company')).not.toBeInTheDocument()

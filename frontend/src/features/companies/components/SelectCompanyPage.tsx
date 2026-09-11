@@ -32,9 +32,13 @@ export function SelectCompanyPage() {
   const navigate = useNavigate()
   const { data: companies, isLoading, isError } = useCompanies()
 
-  // Nothing here is relevant to a real tenant role — this screen only exists for
-  // super_admin. A stray direct visit (e.g. a typed URL) just bounces to /dashboard.
-  if (role !== null && role !== 'super_admin') {
+  // Nothing here is relevant to a tenant user — this screen only exists for super_admin. A
+  // stray direct visit (e.g. a typed URL) just bounces to /dashboard. Checking only
+  // `!== 'super_admin'` (not also `role !== null`) matters now: a tenant user's token no
+  // longer carries a role claim at all, so `role` is always null for them, never some other
+  // non-null string the old check was looking for (see CLAUDE.md § Authentication &
+  // Authorization) — the old two-part check would have silently stopped redirecting them.
+  if (role !== 'super_admin') {
     return <Navigate to="/dashboard" replace />
   }
 

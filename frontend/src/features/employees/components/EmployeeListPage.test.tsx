@@ -1,4 +1,3 @@
-import { useAuth0 } from '@auth0/auth0-react'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,15 +6,11 @@ import { useMyPermissions } from '@/features/auth/hooks'
 import { EmployeeListPage } from './EmployeeListPage'
 import { useDeleteEmployee, useEmployees, usePositions } from '../hooks'
 
-vi.mock('@auth0/auth0-react', () => ({
-  useAuth0: vi.fn(),
-}))
-
-// usePermissions() (canManageEmployees) is left real, driven by the mocked useAuth0() user
-// object, same as every other role-based UI test in this codebase. can_view_salary
-// specifically now comes from useMyPermissions() (a real backend call — see its docstring
-// in features/auth/hooks.ts), which has no meaning in a component test with no
-// QueryClient/network, so only that one export is mocked here.
+// EmployeeListPage no longer calls useAuth0/usePermissions at all — canManageEmployees and
+// canViewSalary both come from useMyPermissions() (the caller's own Position
+// permission, from the backend — see CLAUDE.md § Authentication & Authorization and
+// features/auth/hooks.ts), which has no meaning in a component test with no
+// QueryClient/network, so that's the one thing mocked here.
 vi.mock('@/features/auth/hooks', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/auth/hooks')>()
   return { ...actual, useMyPermissions: vi.fn() }
@@ -27,21 +22,20 @@ vi.mock('../hooks', () => ({
   useDeleteEmployee: vi.fn(),
 }))
 
-const ROLE_CLAIM = 'https://localmanagementapp.com/role'
-
-function mockRole(role: string | undefined) {
-  vi.mocked(useAuth0).mockReturnValue({
-    user: role ? { [ROLE_CLAIM]: role } : undefined,
-  } as ReturnType<typeof useAuth0>)
-  // Mirrors the backend's role-only OR logic (no position/grade grant in play here) — see
-  // SALARY_VIEWER_ROLES in app/core/dependencies.py.
+function mockPermissions({
+  canManageEmployees = false,
+  canViewSalary = false,
+}: {
+  canManageEmployees?: boolean
+  canViewSalary?: boolean
+} = {}) {
   vi.mocked(useMyPermissions).mockReturnValue({
     data: {
-      role: role ?? '',
-      can_manage_employees: false,
-      can_manage_products: false,
-      can_manage_positions: false,
-      can_view_salary: role === 'admin' || role === 'hr_manager',
+      role: '',
+      manage_employees: canManageEmployees,
+      manage_products: false,
+      manage_positions: false,
+      view_salary: canViewSalary,
     },
     isLoading: false,
     isError: false,
@@ -81,8 +75,8 @@ beforeEach(() => {
 })
 
 describe('EmployeeListPage role-based UI', () => {
-  it('shows New/Edit/Delete and the Salary column for admin', () => {
-    mockRole('admin')
+  it('shows New/Edit/Delete and the Salary column when the backend grants both', () => {
+    mockPermissions({ canManageEmployees: true, canViewSalary: true })
     render(<EmployeeListPage />)
     expect(screen.getByRole('button', { name: /new employee/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /edit jane doe/i })).toBeInTheDocument()
@@ -91,28 +85,18 @@ describe('EmployeeListPage role-based UI', () => {
     expect(screen.getByText('$75,000.50')).toBeInTheDocument()
   })
 
-  it('shows New/Edit/Delete and the Salary column for hr_manager', () => {
-    mockRole('hr_manager')
-    render(<EmployeeListPage />)
-    expect(screen.getByRole('button', { name: /new employee/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /edit jane doe/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /delete jane doe/i })).toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: /salary/i })).toBeInTheDocument()
-    expect(screen.getByText('$75,000.50')).toBeInTheDocument()
-  })
-
-  it('hides New/Edit/Delete and the Salary column for inventory_manager (wrong department)', () => {
-    mockRole('inventory_manager')
+  it('shows Salary but hides New/Edit/Delete when only view_salary is granted', () => {
+    mockPermissions({ canManageEmployees: false, canViewSalary: true })
     render(<EmployeeListPage />)
     expect(screen.queryByRole('button', { name: /new employee/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit jane doe/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /delete jane doe/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: /salary/i })).not.toBeInTheDocument()
-    expect(screen.queryByText('$75,000.50')).not.toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /salary/i })).toBeInTheDocument()
+    expect(screen.getByText('$75,000.50')).toBeInTheDocument()
   })
 
-  it('hides New/Edit/Delete and the Salary column for employee (read-only)', () => {
-    mockRole('employee')
+  it('hides New/Edit/Delete and the Salary column when neither is granted (e.g. a plain "employee" with no Position grant)', () => {
+    mockPermissions()
     render(<EmployeeListPage />)
     expect(screen.queryByRole('button', { name: /new employee/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit jane doe/i })).not.toBeInTheDocument()
@@ -123,18 +107,27 @@ describe('EmployeeListPage role-based UI', () => {
     expect(screen.getByText('Jane Doe')).toBeInTheDocument()
   })
 
-  it('fails closed and hides New/Edit/Delete and Salary when the role claim is missing', () => {
-    mockRole(undefined)
+  it('shows New/Edit/Delete for a plain "employee" role whose Position grants manage_employees', () => {
+    // The whole point of the Role-RBAC -> Position-permission consolidation: the role
+    // itself is irrelevant here, only what useMyPermissions() reports matters.
+    mockPermissions({ canManageEmployees: true })
+    render(<EmployeeListPage />)
+    expect(screen.getByRole('button', { name: /new employee/i })).toBeInTheDocument()
+  })
+
+  it('fails closed and hides New/Edit/Delete and Salary while permissions are still loading', () => {
+    vi.mocked(useMyPermissions).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+    } as unknown as ReturnType<typeof useMyPermissions>)
     render(<EmployeeListPage />)
     expect(screen.queryByRole('button', { name: /new employee/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /edit jane doe/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /delete jane doe/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: /salary/i })).not.toBeInTheDocument()
-    expect(screen.queryByText('$75,000.50')).not.toBeInTheDocument()
   })
 
   it('renders a clean error state instead of crashing when the query fails (e.g. a super_admin token, which has no company_id and gets a 403 from the backend)', () => {
-    mockRole('super_admin')
+    mockPermissions()
     vi.mocked(useEmployees).mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -142,7 +135,6 @@ describe('EmployeeListPage role-based UI', () => {
     } as ReturnType<typeof useEmployees>)
     render(<EmployeeListPage />)
     expect(screen.getByText(/failed to load employees/i)).toBeInTheDocument()
-    // super_admin isn't admin/hr_manager, so New/Edit/Delete correctly stay hidden too
     expect(screen.queryByRole('button', { name: /new employee/i })).not.toBeInTheDocument()
   })
 })

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { usePermissions } from '@/features/auth/hooks'
+import { useMyPermissions } from '@/features/auth/hooks'
 
 import { PositionFormDialog } from './PositionFormDialog'
 import { useDeletePosition, usePositions } from '../hooks'
@@ -25,7 +25,10 @@ export function PositionListPage() {
   >(null)
   const [deleteTarget, setDeleteTarget] = useState<Position | null>(null)
 
-  const { canManagePositions } = usePermissions()
+  // The caller's own Position permission is the sole source of truth now (see
+  // useMyPermissions), not a JWT role check. Defaults to false while loading — fail closed.
+  const { data: myPermissions } = useMyPermissions()
+  const canManagePositions = myPermissions?.manage_positions ?? false
   const { data: positions, isLoading, isError } = usePositions()
   const deletePosition = useDeletePosition()
 

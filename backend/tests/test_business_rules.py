@@ -14,7 +14,7 @@ class TestProductValidation:
         resp = await client.post(
             "/api/v1/products",
             json={"name": "Bad", "category": "X", "quantity": -1, "price": 9.99},
-            headers=await provisioned_headers("inventory_manager", company_a.id),
+            headers=await provisioned_headers("inventory_manager", company_a.id, manage_products=True),
         )
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
@@ -25,7 +25,7 @@ class TestProductValidation:
         resp = await client.put(
             f"/api/v1/products/{product_a.id}",
             json={"quantity": -5},
-            headers=await provisioned_headers("inventory_manager", company_a.id),
+            headers=await provisioned_headers("inventory_manager", company_a.id, manage_products=True),
         )
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
@@ -35,7 +35,7 @@ class TestProductValidation:
         resp = await client.post(
             "/api/v1/products",
             json={"name": "Out Of Stock", "category": "X", "quantity": 0, "price": 9.99},
-            headers=await provisioned_headers("inventory_manager", company_a.id),
+            headers=await provisioned_headers("inventory_manager", company_a.id, manage_products=True),
         )
         assert resp.status_code == 201
 
@@ -53,7 +53,7 @@ class TestEmployeeValidation:
                 "hired_at": "2024-01-01",
                 "email": "bad-salary@example.com",
             },
-            headers=await provisioned_headers("hr_manager", company_a.id),
+            headers=await provisioned_headers("hr_manager", company_a.id, manage_employees=True, manage_positions=True),
         )
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
@@ -71,7 +71,7 @@ class TestEmployeeValidation:
                 "hired_at": "2024-01-01",
                 "email": "zero-salary@example.com",
             },
-            headers=await provisioned_headers("hr_manager", company_a.id),
+            headers=await provisioned_headers("hr_manager", company_a.id, manage_employees=True, manage_positions=True),
         )
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
@@ -82,7 +82,7 @@ class TestEmployeeValidation:
         resp = await client.put(
             f"/api/v1/employees/{employee_a.id}",
             json={"salary": -500},
-            headers=await provisioned_headers("hr_manager", company_a.id),
+            headers=await provisioned_headers("hr_manager", company_a.id, manage_employees=True, manage_positions=True),
         )
         assert resp.status_code == 400
         assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
@@ -102,7 +102,7 @@ class TestEmployeeValidation:
                 "hired_at": "2024-01-01",
                 "email": "leak-check@example.com",
             },
-            headers=await provisioned_headers("hr_manager", company_a.id),
+            headers=await provisioned_headers("hr_manager", company_a.id, manage_employees=True, manage_positions=True),
         )
         assert resp.status_code == 400
         assert "123456" not in resp.text
@@ -114,7 +114,7 @@ class TestPositionDeletion:
     ):
         resp = await client.delete(
             f"/api/v1/positions/{position_a.id}",
-            headers=await provisioned_headers("hr_manager", company_a.id),
+            headers=await provisioned_headers("hr_manager", company_a.id, manage_employees=True, manage_positions=True),
         )
         assert resp.status_code == 409
         assert resp.json()["error"]["code"] == "POSITION_IN_USE"
@@ -123,7 +123,7 @@ class TestPositionDeletion:
     async def test_position_is_not_deleted_when_rejected(
         self, client, company_a, position_a, employee_a, provisioned_headers
     ):
-        headers = await provisioned_headers("hr_manager", company_a.id)
+        headers = await provisioned_headers("hr_manager", company_a.id, manage_employees=True, manage_positions=True)
         resp = await client.delete(f"/api/v1/positions/{position_a.id}", headers=headers)
         assert resp.status_code == 409
 
@@ -141,6 +141,6 @@ class TestPositionDeletion:
 
         resp = await client.delete(
             f"/api/v1/positions/{position.id}",
-            headers=await provisioned_headers("hr_manager", company_a.id),
+            headers=await provisioned_headers("hr_manager", company_a.id, manage_employees=True, manage_positions=True),
         )
         assert resp.status_code == 200

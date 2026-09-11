@@ -1,7 +1,6 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { useQuery } from '@tanstack/react-query'
 
-import { useActingCompanyId } from '@/lib/actingCompany'
 import { useApiClient } from '@/lib/apiClient'
 import { MY_PERMISSIONS_QUERY_KEY } from '@/lib/queryKeys'
 
@@ -13,9 +12,7 @@ const ROLE_CLAIM = 'https://localmanagementapp.com/role'
 
 // admin/hr_manager/inventory_manager/employee are tenant-scoped roles (a company_id claim
 // always comes with them). super_admin is a separate, platform-level role for managing the
-// Companies (tenants) resource itself — see CLAUDE.md § Authentication & Authorization. It
-// deliberately does NOT satisfy any of the tenant-scoped canManageX checks below, even
-// though "admin" is a substring of its name — they are unrelated roles.
+// Companies (tenants) resource itself — see CLAUDE.md § Authentication & Authorization.
 export type Role = 'admin' | 'hr_manager' | 'inventory_manager' | 'employee' | 'super_admin'
 
 const KNOWN_ROLES: readonly Role[] = [
@@ -33,52 +30,36 @@ function isKnownRole(value: unknown): value is Role {
 export interface Permissions {
   /** The user's role, or null if missing/unrecognized (see "fail closed" note below). */
   role: Role | null
-  canManageEmployees: boolean
-  canManagePositions: boolean
-  canManageProducts: boolean
-  /** Salary is sensitive (see CLAUDE.md § Sensitive Data Handling) — deliberately kept as
-   * its own permission rather than reused from canManageEmployees, even though today's
-   * role mapping happens to be identical, so the two concerns ("can edit employee
-   * records" vs. "can see salary") can diverge later without a silent behavior change. */
-  canViewSalary: boolean
-  /** Platform-level: create/rename companies (tenants). super_admin only — never true for
-   * any of the four tenant-scoped roles, including plain "admin". */
+  /** Platform-level: create/rename companies (tenants), and the one signal the Sidebar's
+   * "Companies" entry is disabled on. super_admin only — deliberately still read straight
+   * from the JWT role, unlike every manage/access permission below (see CLAUDE.md §
+   * Authentication & Authorization): this is an identity concern (are you the platform
+   * operator role at all), not a Position-derived grant, so it was never part of the
+   * Role-RBAC -> Position-permission consolidation. */
   canManageCompanies: boolean
 }
 
 /**
- * UI-only mirror of the backend's require_role() checks — see CLAUDE.md § Authentication &
- * Authorization and app/api/v1/{companies,employees,positions,products}.py. The mapping
- * here must stay identical to those require_role([...]) lists; it exists purely to hide
- * controls the user isn't allowed to use, NOT to enforce access — the backend remains the
- * sole source of truth and rejects unauthorized requests regardless of what this hook
- * returns.
+ * Identity-only: which role a token carries, and whether that role is the platform-level
+ * super_admin. This is NOT where Employees/Positions/Products manage or access decisions
+ * come from anymore — those are decided entirely by the caller's own Position permissions,
+ * fetched from the backend via useMyPermissions() below (see CLAUDE.md § Authentication &
+ * Authorization; app/core/dependencies.py::require_position_permission is the actual
+ * server-side enforcement every one of those flags mirrors). A tenant user's token doesn't
+ * even carry a role claim anymore — only super_admin tokens do — so `role` is always null
+ * here for a tenant user; reading role from a JWT claim used to also double as a hardcoded
+ * role -> permission map for those modules, but that map no longer exists here on purpose.
  *
  * Fails closed: if the role claim is missing, malformed, or not one of the five known
- * roles, `role` is null and every permission below is false — never falls back to full
- * access.
- *
- * "Act as company" mode (see lib/actingCompany.ts and CLAUDE.md § Authentication &
- * Authorization): while a super_admin has chosen a company via /select-company, the four
- * tenant-scoped booleans below light up exactly as they would for a real "admin" of that
- * company — mirroring get_effective_role() on the backend — so the SAME Employees/Products/
- * Positions pages, unchanged, naturally show their CRUD controls. `role` itself is
- * deliberately NOT overridden to "admin": it stays "super_admin" so identity-based checks
- * (canManageCompanies, and useMyCompany()'s own enabled gate) are unaffected by acting mode.
+ * roles, `role` is null and canManageCompanies is false.
  */
 export function usePermissions(): Permissions {
   const { user } = useAuth0()
   const rawRole = user?.[ROLE_CLAIM]
   const role: Role | null = isKnownRole(rawRole) ? rawRole : null
-  const actingCompanyId = useActingCompanyId()
-  const isActingAsAdmin = role === 'super_admin' && actingCompanyId !== null
 
   return {
     role,
-    canManageEmployees: role === 'admin' || role === 'hr_manager' || isActingAsAdmin,
-    canManagePositions: role === 'admin' || role === 'hr_manager' || isActingAsAdmin,
-    canManageProducts: role === 'admin' || role === 'inventory_manager' || isActingAsAdmin,
-    canViewSalary: role === 'admin' || role === 'hr_manager' || isActingAsAdmin,
     canManageCompanies: role === 'super_admin',
   }
 }
@@ -94,14 +75,16 @@ export function getPostLoginRedirectPath(role: Role | null): string {
 }
 
 /**
- * Backend-derived effective permissions (GET /api/v1/me/permissions) — unlike
- * usePermissions() above (a pure client-side ID token read), this reflects the real
- * position/grade-derived OR logic for can_view_salary: (role is admin/hr_manager) OR (the
- * caller's own position's can_view_salary, defaulted from a Grade — see
- * app/models/grade.py). Used specifically for salary visibility (EmployeeListPage's salary
- * column, EmployeeFormDialog's salary field) since that's the one permission that can't be
- * computed from the token alone. The other three can_manage_* flags keep coming from
- * usePermissions() everywhere else — this hook is not a wholesale replacement for it.
+ * The current user's Position-derived permissions (GET /api/v1/me/permissions) — the SOLE
+ * source of truth for whether Employees/Positions/Products can be reached and managed at
+ * all (see app/core/dependencies.py::require_position_permission, which this mirrors
+ * exactly, including its acting-as-company bypass). Every consumer (Sidebar's disabled
+ * state, ProtectedRoute's requiredPermission, each list page's New/Edit/Delete controls)
+ * reads directly from this hook's `data` now — there is no separate client-side role ->
+ * permission map to keep in sync with it anymore.
+ *
+ * `data` is undefined while loading; every caller should default to `false` in that window
+ * (fail closed — never show a manage control before we're sure it's allowed).
  */
 export function useMyPermissions() {
   const client = useApiClient()

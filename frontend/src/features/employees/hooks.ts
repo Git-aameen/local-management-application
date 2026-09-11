@@ -9,7 +9,7 @@ import { EMPLOYEES_QUERY_KEY, POSITIONS_QUERY_KEY } from '@/lib/queryKeys'
 import * as api from './api'
 import type {
   EmployeeCreateInput,
-  EmployeeSpecialPermissionsUpdateInput,
+  EmployeePermissionOverrideUpdateInput,
   EmployeeUpdateInput,
 } from './types'
 
@@ -75,20 +75,20 @@ export function useDeleteEmployee() {
   })
 }
 
-export function useEmployeeSpecialPermissions(employeeId: number) {
+export function useEmployeePermissionOverride(employeeId: number) {
   const client = useApiClient()
   return useQuery({
     queryKey: [...EMPLOYEES_QUERY_KEY, employeeId, 'special-permissions'],
-    queryFn: () => api.getEmployeeSpecialPermissions(client, employeeId),
+    queryFn: () => api.getEmployeePermissionOverride(client, employeeId),
   })
 }
 
-export function useUpdateEmployeeSpecialPermissions(employeeId: number) {
+export function useUpdateEmployeePermissionOverride(employeeId: number) {
   const client = useApiClient()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: EmployeeSpecialPermissionsUpdateInput) =>
-      api.updateEmployeeSpecialPermissions(client, employeeId, input),
+    mutationFn: (input: EmployeePermissionOverrideUpdateInput) =>
+      api.updateEmployeePermissionOverride(client, employeeId, input),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [...EMPLOYEES_QUERY_KEY, employeeId, 'special-permissions'],

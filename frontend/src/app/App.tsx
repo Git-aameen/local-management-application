@@ -11,7 +11,6 @@ import { RequireActingCompanyForSuperAdmin } from '@/features/auth/components/Re
 import { CompanyListPage } from '@/features/companies/components/CompanyListPage'
 import { SelectCompanyPage } from '@/features/companies/components/SelectCompanyPage'
 import { EmployeeListPage } from '@/features/employees/components/EmployeeListPage'
-import { GradeListPage } from '@/features/grades/components/GradeListPage'
 import { PositionListPage } from '@/features/positions/components/PositionListPage'
 import { ProductListPage } from '@/features/products/components/ProductListPage'
 import { queryClient } from '@/lib/queryClient'
@@ -38,9 +37,12 @@ export function App() {
                 <Route element={<AppLayout />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/companies" element={<CompanyListPage />} />
-                  <Route path="/employees" element={<EmployeeListPage />} />
-                  <Route path="/positions" element={<PositionListPage />} />
-                  <Route path="/grades" element={<GradeListPage />} />
+                  <Route element={<ProtectedRoute requiredPermission="manage_employees" />}>
+                    <Route path="/employees" element={<EmployeeListPage />} />
+                  </Route>
+                  <Route element={<ProtectedRoute requiredPermission="manage_positions" />}>
+                    <Route path="/positions" element={<PositionListPage />} />
+                  </Route>
                   <Route path="/products" element={<ProductListPage />} />
                 </Route>
               </Route>

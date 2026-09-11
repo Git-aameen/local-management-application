@@ -6,7 +6,10 @@ The caller in every test is provisioned via the `provisioned_headers` fixture (c
 matching Employee record in company_a first) — get_current_employee_context() is now a
 REQUIRED gate (see app/core/dependencies.py and tests/test_account_provisioning.py), so an
 unprovisioned admin token would be rejected with 403 ACCOUNT_NOT_PROVISIONED before ever
-reaching the tenant-isolation logic these tests are actually about.
+reaching the tenant-isolation logic these tests are actually about. Writes additionally need
+the matching manage_* Position grant now (see require_position_permission) or they'd be
+rejected with 403 POSITION_PERMISSION_DENIED before ever reaching that tenant-isolation
+logic either — reads need no grant at all.
 """
 
 
@@ -27,7 +30,7 @@ class TestEmployeeTenantIsolation:
         resp = await client.put(
             f"/api/v1/employees/{employee_b.id}",
             json={"full_name": "Hacked"},
-            headers=await provisioned_headers("admin", company_a.id),
+            headers=await provisioned_headers("admin", company_a.id, manage_employees=True),
         )
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "EMPLOYEE_NOT_FOUND"
@@ -37,7 +40,7 @@ class TestEmployeeTenantIsolation:
     ):
         resp = await client.delete(
             f"/api/v1/employees/{employee_b.id}",
-            headers=await provisioned_headers("admin", company_a.id),
+            headers=await provisioned_headers("admin", company_a.id, manage_employees=True),
         )
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "EMPLOYEE_NOT_FOUND"
@@ -65,7 +68,7 @@ class TestEmployeeTenantIsolation:
                 "hired_at": "2024-01-01",
                 "email": "eve@example.com",
             },
-            headers=await provisioned_headers("admin", company_a.id),
+            headers=await provisioned_headers("admin", company_a.id, manage_employees=True),
         )
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "POSITION_NOT_FOUND"
@@ -76,7 +79,7 @@ class TestEmployeeTenantIsolation:
         resp = await client.put(
             f"/api/v1/employees/{employee_a.id}",
             json={"position_id": position_b.id},
-            headers=await provisioned_headers("admin", company_a.id),
+            headers=await provisioned_headers("admin", company_a.id, manage_employees=True),
         )
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "POSITION_NOT_FOUND"
@@ -99,7 +102,7 @@ class TestProductTenantIsolation:
         resp = await client.put(
             f"/api/v1/products/{product_b.id}",
             json={"quantity": 0},
-            headers=await provisioned_headers("admin", company_a.id),
+            headers=await provisioned_headers("admin", company_a.id, manage_products=True),
         )
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "PRODUCT_NOT_FOUND"
@@ -109,7 +112,7 @@ class TestProductTenantIsolation:
     ):
         resp = await client.delete(
             f"/api/v1/products/{product_b.id}",
-            headers=await provisioned_headers("admin", company_a.id),
+            headers=await provisioned_headers("admin", company_a.id, manage_products=True),
         )
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "PRODUCT_NOT_FOUND"
@@ -143,7 +146,7 @@ class TestPositionTenantIsolation:
         resp = await client.put(
             f"/api/v1/positions/{position_b.id}",
             json={"name": "Hacked"},
-            headers=await provisioned_headers("admin", company_a.id),
+            headers=await provisioned_headers("admin", company_a.id, manage_positions=True),
         )
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "POSITION_NOT_FOUND"
@@ -153,7 +156,7 @@ class TestPositionTenantIsolation:
     ):
         resp = await client.delete(
             f"/api/v1/positions/{position_b.id}",
-            headers=await provisioned_headers("admin", company_a.id),
+            headers=await provisioned_headers("admin", company_a.id, manage_positions=True),
         )
         assert resp.status_code == 404
         assert resp.json()["error"]["code"] == "POSITION_NOT_FOUND"

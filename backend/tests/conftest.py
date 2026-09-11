@@ -37,7 +37,6 @@ from app.core.security import COMPANY_ID_CLAIM, EMAIL_CLAIM, ROLE_CLAIM
 from app.db.session import get_db
 from app.models.company import Company
 from app.models.employee import Employee
-from app.models.grade import Grade
 from app.models.position import Position
 from app.models.product import Product
 from main import app
@@ -136,19 +135,41 @@ async def provisioned_headers(db_session):
     any of the four tenant roles (not super_admin) must have a matching Employee record or
     every protected endpoint rejects them with 403 ACCOUNT_NOT_PROVISIONED, before role or
     tenant-isolation logic is ever reached. This is what most RBAC/tenant-isolation tests
-    should call instead of bare auth_headers() now — it creates a throwaway, grade-less
-    Position (so it never masquerades as a grade-derived permission grant — see
-    test_grade_and_special_permissions.py for tests that want one) + Employee row in the
-    given company, with a fresh random email each call, then returns auth_headers() for a
-    token matching that email.
+    should call instead of bare auth_headers() now — it creates an Employee row in the given
+    company, with a fresh random email each call, then returns auth_headers() for a token
+    matching that email.
+
+    By default the Employee's Position grants nothing (all five flags False) — `role` alone
+    grants nothing for Employees/Positions/Products manage endpoints anymore (see
+    require_position_permission), so most callers that only need a valid, provisioned
+    caller (reads, tenant-isolation checks, etc.) can ignore the five `manage_*`/
+    `view_salary` keyword args below entirely. Pass whichever ones a test's write
+    actually needs granted, and this sets them directly on the caller's own Position — e.g.
+    `provisioned_headers("employee", company_id, manage_products=True)` for a caller
+    whose ROLE is "employee" but whose POSITION grants product management, the same
+    combination test_rbac.py now uses throughout to prove role is no longer what's checked.
     """
 
     async def _make(
         role: str,
         company_id: int,
+        *,
+        manage_employees: bool = False,
+        manage_products: bool = False,
+        manage_positions: bool = False,
+        view_salary: bool = False,
+        manage_special_permissions: bool = False,
         **extra_claims: object,
     ) -> dict[str, str]:
-        position = Position(company_id=company_id, name="Test Caller Position")
+        position = Position(
+            company_id=company_id,
+            name="Test Caller Position",
+            manage_employees=manage_employees,
+            manage_products=manage_products,
+            manage_positions=manage_positions,
+            view_salary=view_salary,
+            manage_special_permissions=manage_special_permissions,
+        )
         db_session.add(position)
         await db_session.commit()
         await db_session.refresh(position)
@@ -204,38 +225,6 @@ async def position_b(db_session, company_b):
     await db_session.commit()
     await db_session.refresh(position)
     return position
-
-
-@pytest_asyncio.fixture
-async def grade_a(db_session, company_a):
-    grade = Grade(
-        company_id=company_a.id,
-        code="M",
-        name="Manager",
-        level=2,
-        can_manage_employees=True,
-        can_manage_products=True,
-    )
-    db_session.add(grade)
-    await db_session.commit()
-    await db_session.refresh(grade)
-    return grade
-
-
-@pytest_asyncio.fixture
-async def grade_b(db_session, company_b):
-    grade = Grade(
-        company_id=company_b.id,
-        code="M",
-        name="Manager",
-        level=2,
-        can_manage_employees=True,
-        can_manage_products=True,
-    )
-    db_session.add(grade)
-    await db_session.commit()
-    await db_session.refresh(grade)
-    return grade
 
 
 @pytest_asyncio.fixture

@@ -2,20 +2,24 @@ from pydantic import BaseModel
 
 
 class EffectivePermissionsResponse(BaseModel):
-    """The current user's effective (role OR position) permissions — see
-    app/core/dependencies.py::require_role_or_position_permission and CLAUDE.md §
-    Authentication & Authorization. This mirrors the exact same OR logic enforced
-    server-side on write endpoints; the frontend uses it purely for UI convenience (hiding
-    buttons a request would be rejected for), never as the actual access-control boundary.
+    """The current user's Position-derived permissions — see
+    app/core/dependencies.py::require_position_permission and CLAUDE.md § Authentication &
+    Authorization. This mirrors exactly what that dependency actually enforces server-side
+    (including the acting-as-company bypass); the frontend uses it purely for UI convenience
+    (hiding buttons a request would be rejected for), never as the actual access-control
+    boundary.
     """
 
-    role: str
-    can_manage_employees: bool
-    can_manage_products: bool
-    can_manage_positions: bool
-    can_view_salary: bool
-    # Whether the caller may view/edit ANY employee's special-permissions record — a
-    # different question from the four flags above (see get_can_manage_special_permissions
-    # in app/core/dependencies.py). Gates the Special Permissions section on the Employee
-    # edit view (EmployeeFormDialog.tsx), not itself one of the OR-combined permissions.
-    can_manage_special_permissions: bool
+    # None for every tenant user — only a super_admin token carries a role claim at all now
+    # (see CLAUDE.md § Authentication & Authorization). Reported for display/identity
+    # purposes only; it grants none of the flags below.
+    role: str | None
+    manage_employees: bool
+    manage_products: bool
+    manage_positions: bool
+    view_salary: bool
+    # Whether the caller may view/edit ANY employee's special-permissions record — just
+    # another Position flag now, with no per-employee override counterpart (see
+    # app/models/employee_permission_override.py). Gates the Special Permissions section on
+    # the Employee edit view (EmployeeFormDialog.tsx).
+    manage_special_permissions: bool
