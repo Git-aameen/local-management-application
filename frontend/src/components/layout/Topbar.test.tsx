@@ -1,18 +1,13 @@
-import { useAuth0 } from '@auth0/auth0-react'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { setActingCompanyId } from '@/lib/actingCompany'
 
 import { Topbar } from './Topbar'
 
-vi.mock('@auth0/auth0-react', () => ({
-  useAuth0: vi.fn(),
-}))
-
 function renderTopbar() {
-  render(
+  return render(
     <MemoryRouter>
       <Topbar />
     </MemoryRouter>,
@@ -20,20 +15,15 @@ function renderTopbar() {
 }
 
 describe('Topbar "Exit company view" control', () => {
-  beforeEach(() => {
-    vi.mocked(useAuth0).mockReturnValue({
-      user: { email: 'admin@example.com' },
-      logout: vi.fn(),
-    } as unknown as ReturnType<typeof useAuth0>)
-  })
-
   afterEach(() => {
     setActingCompanyId(null)
   })
 
-  it('is hidden when not acting as a company', () => {
-    renderTopbar()
-    expect(screen.queryByRole('button', { name: /exit company view/i })).not.toBeInTheDocument()
+  // Email + Sign out no longer live here (see SettingsPopover.test.tsx) — this bar renders
+  // nothing at all outside acting-as-company mode now.
+  it('renders nothing when not acting as a company', () => {
+    const { container } = renderTopbar()
+    expect(container).toBeEmptyDOMElement()
   })
 
   it('is shown once a company has been selected', () => {

@@ -13,6 +13,8 @@ import { NavLink } from 'react-router-dom'
 import { useMyPermissions, usePermissions } from '@/features/auth/hooks'
 import { cn } from '@/lib/utils'
 
+import { SettingsPopover } from './SettingsPopover'
+
 const NO_ACCESS_TITLE = 'ไม่มีสิทธิ์เข้าถึง'
 
 interface NavItem {
@@ -33,6 +35,12 @@ interface SidebarProps {
   onToggle: () => void
 }
 
+// Single-column soft-neumorphism nav (see ARCHITECTURE.md § 6): the whole sidebar is one
+// `neu-raised` shape; each row is icon + label side by side, collapsing to icon-only (label
+// as a native title tooltip) when `collapsed`. Collapse state is plain component state —
+// deliberately not persisted (see AppLayout.tsx): resets to expanded on every reload rather
+// than reaching for localStorage or a backend preference, per this project's own constraint
+// against adding state-persistence machinery that wasn't asked for.
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { canManageCompanies } = usePermissions()
   // Employees/Positions access now comes entirely from the caller's own Position
@@ -59,20 +67,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'flex h-svh shrink-0 flex-col border-r bg-background transition-[width] duration-200',
+        'neu-raised flex h-svh shrink-0 flex-col bg-card transition-[width] duration-200',
         collapsed ? 'w-16' : 'w-56',
       )}
     >
-      <div className={cn('flex h-14 items-center border-b px-2', collapsed ? 'justify-center' : 'justify-end')}>
+      <div className={cn('flex h-14 items-center px-2', collapsed ? 'justify-center' : 'justify-end')}>
         <button
           type="button"
           onClick={onToggle}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="rounded-md p-2 text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-accent-foreground"
+          className="rounded-md p-2 text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
         >
           {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
         </button>
       </div>
+
       <nav className="flex flex-1 flex-col gap-1 p-2">
         {navItems.map(({ to, label, icon: Icon, accessible }) => {
           if (accessible === false) {
@@ -82,12 +91,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 aria-disabled="true"
                 title={NO_ACCESS_TITLE}
                 className={cn(
-                  'flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground opacity-50',
+                  'flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground opacity-50',
                   collapsed && 'justify-center',
                 )}
               >
                 <Icon className="size-4 shrink-0" />
-                {!collapsed && <span>{label}</span>}
+                {/* Always a real text node (sr-only when collapsed) rather than dropping
+                 * it — the `title` tooltip alone wouldn't give this item any accessible
+                 * name for screen readers, only a hover hint for a mouse. */}
+                {collapsed ? <span className="sr-only">{label}</span> : <span>{label}</span>}
               </span>
             )
           }
@@ -99,20 +111,29 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               title={collapsed ? label : undefined}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150',
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium outline-none transition-[background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
                   collapsed && 'justify-center',
+                  // Active item gets a raised pill in --accent-soft (a second, slightly
+                  // lighter dark-green step from --primary — see index.css) with white
+                  // icon/label on top, easily clearing WCAG AA (~6.2:1). Every other state
+                  // (hover, disabled above) deliberately stays flat/neutral so this one
+                  // "you are here" indicator never gets confused with anything else.
                   isActive
-                    ? 'bg-accent text-accent-foreground'
+                    ? 'neu-raised-sm bg-accent-soft text-primary-foreground'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                 )
               }
             >
               <Icon className="size-4 shrink-0" />
-              {!collapsed && <span>{label}</span>}
+              {collapsed ? <span className="sr-only">{label}</span> : <span>{label}</span>}
             </NavLink>
           )
         })}
       </nav>
+
+      <div className="border-t border-border p-2">
+        <SettingsPopover collapsed={collapsed} />
+      </div>
     </aside>
   )
 }

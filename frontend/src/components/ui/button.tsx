@@ -9,7 +9,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        default: 'bg-primary text-primary-foreground hover:bg-primary-hover',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
@@ -35,14 +35,25 @@ function Button({
   variant,
   size,
   asChild = false,
+  elevated = false,
   ...props
 }: React.ComponentProps<'button'> &
-  VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+    /** Soft-neumorphism raised shadow, pressed on `:active` (see ARCHITECTURE.md § 6) —
+     * flattens automatically when disabled so a permission-disabled button never reads as
+     * pressable. Only meant for `default`/`destructive`/`outline`/`secondary`; leave false
+     * for `ghost`/`link`, which stay flat by design. */
+    elevated?: boolean
+  }) {
   const Comp = asChild ? Slot : 'button'
   return (
     <Comp
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(
+        buttonVariants({ variant, size, className }),
+        elevated && 'neu-raised-sm transition-shadow active:neu-pressed-sm disabled:shadow-none',
+      )}
       {...props}
     />
   )

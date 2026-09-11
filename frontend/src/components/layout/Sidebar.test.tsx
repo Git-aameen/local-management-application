@@ -1,5 +1,6 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -49,10 +50,10 @@ function mockManagePermissions({
   } as unknown as ReturnType<typeof useMyPermissions>)
 }
 
-function renderSidebar() {
+function renderSidebar({ collapsed = false, onToggle = () => {} }: { collapsed?: boolean; onToggle?: () => void } = {}) {
   return render(
     <MemoryRouter>
-      <Sidebar collapsed={false} onToggle={() => {}} />
+      <Sidebar collapsed={collapsed} onToggle={onToggle} />
     </MemoryRouter>,
   )
 }
@@ -152,5 +153,61 @@ describe('Sidebar Grades link removed', () => {
     mockManagePermissions({ canManageEmployees: true, canManagePositions: true })
     renderSidebar()
     expect(screen.queryByText(/grades/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('Sidebar collapse/expand toggle', () => {
+  it('calls onToggle when the collapse button is clicked', async () => {
+    mockRole('admin')
+    mockManagePermissions()
+    const onToggle = vi.fn()
+    const user = userEvent.setup()
+    renderSidebar({ collapsed: false, onToggle })
+
+    await user.click(screen.getByRole('button', { name: /collapse sidebar/i }))
+    expect(onToggle).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the expand button (and not the collapse button) once collapsed', () => {
+    mockRole('admin')
+    mockManagePermissions()
+    renderSidebar({ collapsed: true })
+
+    expect(screen.getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /collapse sidebar/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps every enabled nav item reachable (still a real link, by its accessible name) while collapsed', () => {
+    mockRole('employee')
+    mockManagePermissions({ canManageEmployees: true, canManagePositions: true })
+    renderSidebar({ collapsed: true })
+
+    expectEnabled(/dashboard/i)
+    expectEnabled(/employees/i)
+    expectEnabled(/positions/i)
+    expectEnabled(/products/i)
+  })
+
+  it('keeps a disabled nav item disabled (with its "no access" tooltip) while collapsed', () => {
+    mockRole('admin')
+    mockManagePermissions()
+    renderSidebar({ collapsed: true })
+
+    expectDisabled(/employees/i)
+    expectDisabled(/companies/i)
+  })
+})
+
+describe('Sidebar settings gear', () => {
+  it('always renders the Settings trigger, in both expanded and collapsed modes', () => {
+    mockRole('admin')
+    mockManagePermissions()
+
+    const { unmount } = renderSidebar({ collapsed: false })
+    expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument()
+    unmount()
+
+    renderSidebar({ collapsed: true })
+    expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument()
   })
 })

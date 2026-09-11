@@ -75,13 +75,12 @@ beforeEach(() => {
 })
 
 describe('EmployeeListPage role-based UI', () => {
-  it('shows New/Edit/Delete and the Salary column when the backend grants both', () => {
+  it('shows New/Edit/Delete and Salary when the backend grants both', () => {
     mockPermissions({ canManageEmployees: true, canViewSalary: true })
     render(<EmployeeListPage />)
     expect(screen.getByRole('button', { name: /new employee/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /edit jane doe/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /delete jane doe/i })).toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: /salary/i })).toBeInTheDocument()
     expect(screen.getByText('$75,000.50')).toBeInTheDocument()
   })
 
@@ -91,17 +90,15 @@ describe('EmployeeListPage role-based UI', () => {
     expect(screen.queryByRole('button', { name: /new employee/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit jane doe/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /delete jane doe/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: /salary/i })).toBeInTheDocument()
     expect(screen.getByText('$75,000.50')).toBeInTheDocument()
   })
 
-  it('hides New/Edit/Delete and the Salary column when neither is granted (e.g. a plain "employee" with no Position grant)', () => {
+  it('hides New/Edit/Delete and Salary when neither is granted (e.g. a plain "employee" with no Position grant)', () => {
     mockPermissions()
     render(<EmployeeListPage />)
     expect(screen.queryByRole('button', { name: /new employee/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit jane doe/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /delete jane doe/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: /salary/i })).not.toBeInTheDocument()
     expect(screen.queryByText('$75,000.50')).not.toBeInTheDocument()
     // the non-sensitive data itself is still visible — read-only, not hidden entirely
     expect(screen.getByText('Jane Doe')).toBeInTheDocument()
@@ -123,7 +120,7 @@ describe('EmployeeListPage role-based UI', () => {
     } as unknown as ReturnType<typeof useMyPermissions>)
     render(<EmployeeListPage />)
     expect(screen.queryByRole('button', { name: /new employee/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: /salary/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('$75,000.50')).not.toBeInTheDocument()
   })
 
   it('renders a clean error state instead of crashing when the query fails (e.g. a super_admin token, which has no company_id and gets a 403 from the backend)', () => {

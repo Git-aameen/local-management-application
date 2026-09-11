@@ -19,7 +19,7 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex h-svh">
+    <div className="flex h-svh bg-background">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((value) => !value)} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />

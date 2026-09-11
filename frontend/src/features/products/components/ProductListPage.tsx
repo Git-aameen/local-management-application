@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
+import { NeumorphicCard } from '@/components/ui/neumorphic-card'
 import { SimplePagination } from '@/components/ui/pagination'
 import {
   Select,
@@ -12,16 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { useMyPermissions } from '@/features/auth/hooks'
 
+import { ProductDetailDialog } from './ProductDetailDialog'
 import { ProductFormDialog } from './ProductFormDialog'
 import { useDeleteProduct, useProductCategories, useProducts } from '../hooks'
 import type { Product } from '../types'
@@ -37,6 +31,7 @@ export function ProductListPage() {
     { mode: 'create' } | { mode: 'edit'; product: Product } | null
   >(null)
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
+  const [detailTarget, setDetailTarget] = useState<Product | null>(null)
 
   // canManageProducts comes from the backend (see useMyPermissions), not a plain JWT-role
   // check — it must reflect the OR logic with the caller's own Position (or permission
@@ -51,8 +46,6 @@ export function ProductListPage() {
   const { data: categories } = useProductCategories()
   const deleteProduct = useDeleteProduct()
 
-  const columnCount = canManageProducts ? 5 : 4
-
   function handleCategoryChange(value: string) {
     setCategory(value === ALL_CATEGORIES ? undefined : value)
     setPage(1)
@@ -65,12 +58,22 @@ export function ProductListPage() {
     }
   }
 
+  function editFromCardOrDialog(product: Product) {
+    setDetailTarget(null)
+    setDialogState({ mode: 'edit', product })
+  }
+
+  function deleteFromCardOrDialog(product: Product) {
+    setDetailTarget(null)
+    setDeleteTarget(product)
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-medium">Products</h1>
         {canManageProducts && (
-          <Button type="button" onClick={() => setDialogState({ mode: 'create' })}>
+          <Button type="button" elevated onClick={() => setDialogState({ mode: 'create' })}>
             <Plus />
             New Product
           </Button>
@@ -93,80 +96,74 @@ export function ProductListPage() {
         </Select>
       </div>
 
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Quantity</TableHead>
-              <TableHead>Price</TableHead>
-              {canManageProducts && <TableHead className="w-24 text-right">Actions</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-muted-foreground">
-                  Loading…
-                </TableCell>
-              </TableRow>
-            )}
-            {isError && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-destructive">
-                  Failed to load products.
-                </TableCell>
-              </TableRow>
-            )}
-            {!isLoading && !isError && data?.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-muted-foreground">
-                  No products yet.
-                </TableCell>
-              </TableRow>
-            )}
-            {data?.items.map((product) => (
-              <TableRow key={product.id}>
-                <TableCell className="font-medium">{product.name}</TableCell>
-                <TableCell>{product.category}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <span>{product.quantity}</span>
-                    {product.quantity < LOW_STOCK_THRESHOLD && (
-                      <Badge variant="destructive">Low stock</Badge>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>${Number(product.price).toFixed(2)}</TableCell>
-                {canManageProducts && (
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Edit ${product.name}`}
-                        onClick={() => setDialogState({ mode: 'edit', product })}
-                      >
-                        <Pencil />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Delete ${product.name}`}
-                        onClick={() => setDeleteTarget(product)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      {isLoading && <p className="text-center text-muted-foreground">Loading…</p>}
+      {isError && <p className="text-center text-destructive">Failed to load products.</p>}
+      {!isLoading && !isError && data?.items.length === 0 && (
+        <p className="text-center text-muted-foreground">No products yet.</p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {data?.items.map((product) => (
+          <NeumorphicCard
+            key={product.id}
+            interactive
+            role="button"
+            tabIndex={0}
+            aria-label={`View ${product.name}`}
+            onClick={() => setDetailTarget(product)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setDetailTarget(product)
+              }
+            }}
+            className="flex flex-col gap-2 p-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-col">
+                <span className="font-medium">{product.name}</span>
+                <span className="text-sm text-muted-foreground">{product.category}</span>
+              </div>
+              {canManageProducts && (
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Edit ${product.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      editFromCardOrDialog(product)
+                    }}
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete ${product.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteFromCardOrDialog(product)
+                    }}
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Qty {product.quantity}</span>
+              {product.quantity < LOW_STOCK_THRESHOLD && (
+                <Badge variant="destructive" className="neu-raised-sm">
+                  Low stock
+                </Badge>
+              )}
+            </div>
+            <span className="text-sm font-medium">${Number(product.price).toFixed(2)}</span>
+          </NeumorphicCard>
+        ))}
       </div>
 
       <SimplePagination
@@ -174,6 +171,16 @@ export function ProductListPage() {
         pageSize={PAGE_SIZE}
         total={data?.total ?? 0}
         onPageChange={setPage}
+      />
+
+      <ProductDetailDialog
+        product={detailTarget}
+        canManageProducts={canManageProducts}
+        onOpenChange={(open) => {
+          if (!open) setDetailTarget(null)
+        }}
+        onEdit={() => detailTarget && editFromCardOrDialog(detailTarget)}
+        onDelete={() => detailTarget && deleteFromCardOrDialog(detailTarget)}
       />
 
       {dialogState && (

@@ -1,52 +1,53 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/inter';
 
 :root {
-  color-scheme: light dark;
+  /* Light mode only, by design — see ARCHITECTURE.md § 6. */
+  color-scheme: light;
 
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --destructive-foreground: oklch(0.985 0 0);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-  }
+  /* Soft-green neumorphism palette — background and card are close in value ON PURPOSE
+   * this time (unlike the prior "brighter white card vs. cream page" pass): true
+   * neumorphism needs the raised/inset shadow to be what separates a surface from its
+   * parent, not a color jump — see ARCHITECTURE.md § 6. */
+  --background: #eaf0e9;
+  --foreground: #1b2e22;
+  --card: #f2f6f1;
+  --card-foreground: #1b2e22;
+  --popover: #f2f6f1;
+  --popover-foreground: #1b2e22;
+  --primary: #2f5233;
+  --primary-hover: #24401f;
+  --primary-foreground: #ffffff;
+  /* A second, slightly lighter dark-green step — used only for the Sidebar's active-item
+   * pill (see Sidebar.tsx), so that one recurring "you are here" indicator reads as
+   * distinct from --primary's "New X" action buttons, while still easily clearing WCAG AA
+   * against the white icon on top of it (~6.2:1). */
+  --accent-soft: #3d6b44;
+  /* Generic neutral hover/highlight surface (ghost button hover, select-item highlight,
+   * non-active Sidebar rows) — deliberately NOT the brand green, so hovering something
+   * incidental doesn't flash the same color as a real primary action. The active Sidebar
+   * link uses --accent-soft and primary buttons use --primary directly instead. */
+  --secondary: #e7ede5;
+  --secondary-foreground: #1b2e22;
+  --muted: #e7ede5;
+  --muted-foreground: #5c6b5f;
+  --accent: #e7ede5;
+  --accent-foreground: #1b2e22;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e3e8e1;
+  --input: #e3e8e1;
+  --ring: #2f5233;
+
+  /* Neumorphic shadow pair: light = the "highlight" side, dark = the "shadow" side (see
+   * ARCHITECTURE.md § 6 — never used on table/grid text, focus rings, selected rows, or
+   * form error states). Re-tuned for this slightly more saturated green background — a
+   * touch more opacity and a greener tint than the near-white palette this replaced, so
+   * the shadow reads as sitting on THIS surface rather than a generic grey one. */
+  --shadow-light: rgba(255, 255, 255, 0.85);
+  --shadow-dark: rgba(140, 155, 136, 0.35);
 }
 
 @theme inline {
@@ -57,7 +58,9 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
+  --color-accent-soft: var(--accent-soft);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -73,6 +76,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 @layer base {
@@ -80,7 +84,46 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
     margin: 0;
+  }
+}
+
+/* Soft neumorphism raised/pressed shadow pairs. Two sizes: `-sm` for buttons/badges/inputs,
+ * the unsuffixed size for the page-level card that wraps a grid/list (see
+ * ARCHITECTURE.md § 6 — never applied to table/grid cell text, focus rings, selected rows,
+ * or form error states). Disabled elements get neither (see .neu-flat below), so a
+ * permission-disabled button never gets confused for an enabled one. */
+@utility neu-raised {
+  box-shadow:
+    6px 6px 12px var(--shadow-dark),
+    -6px -6px 12px var(--shadow-light);
+}
+
+@utility neu-raised-sm {
+  box-shadow:
+    3px 3px 6px var(--shadow-dark),
+    -3px -3px 6px var(--shadow-light);
+}
+
+@utility neu-pressed-sm {
+  box-shadow:
+    inset 3px 3px 6px var(--shadow-dark),
+    inset -3px -3px 6px var(--shadow-light);
+}
+
+@utility neu-inset-sm {
+  box-shadow:
+    inset 2px 2px 4px var(--shadow-dark),
+    inset -2px -2px 4px var(--shadow-light);
+}
+
+@utility neu-flat {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
   }
 }

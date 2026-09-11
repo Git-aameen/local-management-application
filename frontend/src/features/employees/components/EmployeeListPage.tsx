@@ -3,18 +3,12 @@ import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
+import { NeumorphicCard } from '@/components/ui/neumorphic-card'
 import { SimplePagination } from '@/components/ui/pagination'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { useMyPermissions } from '@/features/auth/hooks'
 import { formatCurrency } from '@/lib/formatters'
 
+import { EmployeeDetailDialog } from './EmployeeDetailDialog'
 import { EmployeeFormDialog } from './EmployeeFormDialog'
 import { useDeleteEmployee, useEmployees, usePositions } from '../hooks'
 import type { Employee } from '../types'
@@ -27,6 +21,7 @@ export function EmployeeListPage() {
     { mode: 'create' } | { mode: 'edit'; employee: Employee } | null
   >(null)
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null)
+  const [detailTarget, setDetailTarget] = useState<Employee | null>(null)
 
   // Both come from the backend (see useMyPermissions) — the caller's own Position
   // permissions are the sole source of truth for manage access and salary visibility alike
@@ -41,7 +36,6 @@ export function EmployeeListPage() {
   const deleteEmployee = useDeleteEmployee()
 
   const positionNameById = new Map((positions ?? []).map((p) => [p.id, p.name]))
-  const columnCount = 4 + (canViewSalary ? 1 : 0) + (canManageEmployees ? 1 : 0)
 
   function confirmDelete() {
     if (deleteTarget) {
@@ -50,87 +44,94 @@ export function EmployeeListPage() {
     }
   }
 
+  function editFromCardOrDialog(employee: Employee) {
+    setDetailTarget(null)
+    setDialogState({ mode: 'edit', employee })
+  }
+
+  function deleteFromCardOrDialog(employee: Employee) {
+    setDetailTarget(null)
+    setDeleteTarget(employee)
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-medium">Employees</h1>
         {canManageEmployees && (
-          <Button type="button" onClick={() => setDialogState({ mode: 'create' })}>
+          <Button type="button" elevated onClick={() => setDialogState({ mode: 'create' })}>
             <Plus />
             New Employee
           </Button>
         )}
       </div>
 
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Full Name</TableHead>
-              <TableHead>Position</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Hired At</TableHead>
-              {canViewSalary && <TableHead>Salary</TableHead>}
-              {canManageEmployees && <TableHead className="w-24 text-right">Actions</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-muted-foreground">
-                  Loading…
-                </TableCell>
-              </TableRow>
+      {isLoading && <p className="text-center text-muted-foreground">Loading…</p>}
+      {isError && <p className="text-center text-destructive">Failed to load employees.</p>}
+      {!isLoading && !isError && data?.items.length === 0 && (
+        <p className="text-center text-muted-foreground">No employees yet.</p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {data?.items.map((employee) => (
+          <NeumorphicCard
+            key={employee.id}
+            interactive
+            role="button"
+            tabIndex={0}
+            aria-label={`View ${employee.full_name}`}
+            onClick={() => setDetailTarget(employee)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setDetailTarget(employee)
+              }
+            }}
+            className="flex flex-col gap-2 p-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-col">
+                <span className="font-medium">{employee.full_name}</span>
+                <span className="text-sm text-muted-foreground">
+                  {positionNameById.get(employee.position_id) ?? '—'}
+                </span>
+              </div>
+              {canManageEmployees && (
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Edit ${employee.full_name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      editFromCardOrDialog(employee)
+                    }}
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete ${employee.full_name}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteFromCardOrDialog(employee)
+                    }}
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <span className="text-sm text-muted-foreground">{employee.email}</span>
+            <span className="text-sm text-muted-foreground">Hired {employee.hired_at}</span>
+            {canViewSalary && (
+              <span className="text-sm font-medium">{formatCurrency(employee.salary)}</span>
             )}
-            {isError && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-destructive">
-                  Failed to load employees.
-                </TableCell>
-              </TableRow>
-            )}
-            {!isLoading && !isError && data?.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-muted-foreground">
-                  No employees yet.
-                </TableCell>
-              </TableRow>
-            )}
-            {data?.items.map((employee) => (
-              <TableRow key={employee.id}>
-                <TableCell className="font-medium">{employee.full_name}</TableCell>
-                <TableCell>{positionNameById.get(employee.position_id) ?? '—'}</TableCell>
-                <TableCell>{employee.email}</TableCell>
-                <TableCell>{employee.hired_at}</TableCell>
-                {canViewSalary && <TableCell>{formatCurrency(employee.salary)}</TableCell>}
-                {canManageEmployees && (
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Edit ${employee.full_name}`}
-                        onClick={() => setDialogState({ mode: 'edit', employee })}
-                      >
-                        <Pencil />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Delete ${employee.full_name}`}
-                        onClick={() => setDeleteTarget(employee)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+          </NeumorphicCard>
+        ))}
       </div>
 
       <SimplePagination
@@ -138,6 +139,20 @@ export function EmployeeListPage() {
         pageSize={PAGE_SIZE}
         total={data?.total ?? 0}
         onPageChange={setPage}
+      />
+
+      <EmployeeDetailDialog
+        employee={detailTarget}
+        positionName={
+          detailTarget ? (positionNameById.get(detailTarget.position_id) ?? '—') : ''
+        }
+        canManageEmployees={canManageEmployees}
+        canViewSalary={canViewSalary}
+        onOpenChange={(open) => {
+          if (!open) setDetailTarget(null)
+        }}
+        onEdit={() => detailTarget && editFromCardOrDialog(detailTarget)}
+        onDelete={() => detailTarget && deleteFromCardOrDialog(detailTarget)}
       />
 
       {dialogState && (
