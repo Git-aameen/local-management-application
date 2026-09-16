@@ -38,7 +38,10 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border border-border bg-background p-6 duration-150 data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+          // Deliberately more pronounced than ordinary flat surfaces (border-2, rounded-xl
+          // vs. the app's usual border/rounded-md) — a modal's edge should read as a firm
+          // boundary, not blend in with the panels/cards behind it.
+          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border-2 border-border bg-background p-6 duration-150 data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
           className,
         )}
         {...props}

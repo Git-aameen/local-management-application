@@ -19,7 +19,9 @@ describe('App', () => {
     } as unknown as ReturnType<typeof useAuth0>)
 
     render(<App />)
-    expect(screen.getByRole('heading', { name: 'Log in' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Local Management Application' }),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Log In' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/login')
   })

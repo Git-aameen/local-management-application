@@ -38,7 +38,8 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border border-border bg-background p-6 duration-150 data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+          // Matches DialogContent's edge treatment (border-2, rounded-xl) — see dialog.tsx.
+          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border-2 border-border bg-background p-6 duration-150 data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
           className,
         )}
         {...props}

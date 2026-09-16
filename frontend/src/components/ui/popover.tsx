@@ -26,7 +26,8 @@ function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          'z-50 w-64 rounded-md border border-border bg-card p-3 text-card-foreground outline-none data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+          // Matches DialogContent's edge treatment (border-2, rounded-xl) — see dialog.tsx.
+          'z-50 w-64 rounded-xl border-2 border-border bg-card p-3 text-card-foreground outline-none data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
           className,
         )}
         {...props}

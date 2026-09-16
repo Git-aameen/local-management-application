@@ -43,27 +43,45 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-svh grid-cols-1 md:grid-cols-2">
-      <div className="hidden flex-col items-center justify-center gap-2 bg-muted p-10 md:flex">
-        <h1 className="font-display text-3xl font-semibold">Local Management Application</h1>
-        <p className="text-center text-muted-foreground">
-          Multi-tenant HR &amp; inventory backoffice
-        </p>
-      </div>
+    // Single unified composition (see ARCHITECTURE.md § 6) — replaces the old split-screen
+    // (branding left / login right) layout. A backoffice login should read as a fast,
+    // single-purpose gate, not a marketing hero: one glance at the brand mark, one button,
+    // nothing to scroll past. The lava glow + gradient seam are the same visual language
+    // already used for the Sidebar/content panel, not a one-off decoration.
+    <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background px-6 py-12">
+      {/* Decorative molten glow behind the card — existing lava tones only, no new hues.
+       * aria-hidden since it carries no information. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute size-[820px] max-h-[90vw] max-w-[90vw] rounded-full opacity-40 blur-3xl"
+        style={{
+          background: 'radial-gradient(circle, var(--accent-ember) 0%, var(--accent) 45%, transparent 72%)',
+        }}
+      />
 
-      <div className="flex flex-col items-center justify-center gap-6 p-6">
-        <h1 className="font-display text-2xl font-medium md:hidden">
-          Local Management Application
-        </h1>
-        <div className="flex w-full max-w-sm flex-col items-center gap-4 text-center">
-          <h2 className="font-display text-xl font-medium">Log in</h2>
-          <p className="text-sm text-muted-foreground">
-            Sign in with your Local Management Application account.
-          </p>
+      <div className="relative z-10 flex w-full max-w-3xl flex-col overflow-hidden rounded-md border border-border bg-panel">
+        <div className="h-[2px] w-full shrink-0 bg-gradient-to-r from-accent-ember via-accent to-accent-hot" />
+        <div className="flex flex-col items-center gap-8 p-12 text-center sm:p-16">
+          <div className="w-full">
+            {/* Fluid font-size (not a fixed text-4xl/6xl breakpoint step) so this 28-
+             * character name always fits on one line, at any viewport width, without
+             * wrapping or overflowing — a fixed size that looks right on desktop either
+             * wraps on mobile or has to jump awkwardly at a breakpoint. */}
+            <h1
+              className="font-display font-bold whitespace-nowrap text-panel-foreground"
+              style={{ fontSize: 'clamp(0.75rem, calc(5.5vw - 0.5rem), 2.25rem)' }}
+            >
+              Local Management Application
+            </h1>
+            <p className="mt-3 text-base text-panel-foreground/70 sm:text-lg">
+              Multi-tenant HR &amp; inventory backoffice
+            </p>
+          </div>
+
           <Button
             type="button"
             size="lg"
-            className="w-full"
+            className="w-full max-w-sm"
             onClick={handleLogin}
             disabled={isLoggingIn}
           >
@@ -71,7 +89,7 @@ export function LoginPage() {
           </Button>
 
           {popupUnavailable && (
-            <div className="flex w-full flex-col gap-2 rounded-md border border-destructive/50 p-3">
+            <div className="flex w-full max-w-sm flex-col gap-2 rounded-md border border-destructive/50 p-3 text-left">
               <p className="text-sm text-destructive-light" role="alert">
                 We couldn't open the login popup. Your browser (or an extension) may be
                 blocking pop-ups for this site — allow them and try again, or continue below.
