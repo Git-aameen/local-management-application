@@ -57,11 +57,11 @@ export function EmployeeDetailDialog({
 
             {canManageEmployees && (
               <DialogFooter>
-                <Button type="button" variant="outline" elevated onClick={onEdit}>
+                <Button type="button" variant="outline" onClick={onEdit}>
                   <Pencil />
                   Edit
                 </Button>
-                <Button type="button" variant="destructive" elevated onClick={onDelete}>
+                <Button type="button" variant="destructive" onClick={onDelete}>
                   <Trash2 />
                   Delete
                 </Button>

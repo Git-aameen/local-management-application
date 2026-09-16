@@ -5,13 +5,18 @@ import type * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-display text-sm font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface",
   {
     variants: {
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary-hover',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+        // bg-surface-alt (not bg-background): --background is the darkest layer in this
+        // palette, not the lightest, so an outline button needs a surface lighter than its
+        // surroundings to read as raised/interactive rather than recessed — see
+        // ARCHITECTURE.md § 6.
+        outline:
+          'border border-border-strong bg-surface-alt hover:bg-accent hover:text-accent-foreground',
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
@@ -35,25 +40,13 @@ function Button({
   variant,
   size,
   asChild = false,
-  elevated = false,
   ...props
-}: React.ComponentProps<'button'> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-    /** Soft-neumorphism raised shadow, pressed on `:active` (see ARCHITECTURE.md § 6) —
-     * flattens automatically when disabled so a permission-disabled button never reads as
-     * pressable. Only meant for `default`/`destructive`/`outline`/`secondary`; leave false
-     * for `ghost`/`link`, which stay flat by design. */
-    elevated?: boolean
-  }) {
+}: React.ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
   const Comp = asChild ? Slot : 'button'
   return (
     <Comp
       data-slot="button"
-      className={cn(
-        buttonVariants({ variant, size, className }),
-        elevated && 'neu-raised-sm transition-shadow active:neu-pressed-sm disabled:shadow-none',
-      )}
+      className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
   )

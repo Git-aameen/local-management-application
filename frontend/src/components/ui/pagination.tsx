@@ -13,8 +13,12 @@ export function SimplePagination({ page, pageSize, total, onPageChange }: Simple
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="flex items-center justify-between text-sm text-muted-foreground">
-      <span>{total === 0 ? 'No results' : `Page ${page} of ${totalPages} (${total} total)`}</span>
+    <div className="flex items-center justify-between text-sm">
+      {/* Only this label sits directly on --panel — the outline buttons below carry their
+       * own bg-surface-alt fill (self-contained, like Input/Select). */}
+      <span className="text-panel-foreground/70">
+        {total === 0 ? 'No results' : `Page ${page} of ${totalPages} (${total} total)`}
+      </span>
       <div className="flex items-center gap-2">
         <Button
           type="button"

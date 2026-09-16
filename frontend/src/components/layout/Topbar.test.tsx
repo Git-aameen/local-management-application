@@ -19,8 +19,9 @@ describe('Topbar "Exit company view" control', () => {
     setActingCompanyId(null)
   })
 
-  // Email + Sign out no longer live here (see SettingsPopover.test.tsx) — this bar renders
-  // nothing at all outside acting-as-company mode now.
+  // Email + Sign out live in Sidebar's SettingsPopover, not here — this bar renders
+  // nothing at all outside acting-as-company mode now that the Sidebar toggle (not a
+  // Topbar hamburger) owns opening/collapsing it.
   it('renders nothing when not acting as a company', () => {
     const { container } = renderTopbar()
     expect(container).toBeEmptyDOMElement()

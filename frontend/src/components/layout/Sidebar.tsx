@@ -24,9 +24,10 @@ interface NavItem {
   /** Omitted (undefined) means always enabled — Dashboard and Products have no access
    * restriction of their own (Products stays view-for-everyone; only its New/Edit/Delete
    * controls are role-gated, inside the page itself — see ProductListPage.tsx). When
-   * present and false, the item still renders (never hidden) but disabled: reduced
-   * opacity, not-allowed cursor, no navigation, and an aria-disabled + title explaining why
-   * — for a11y and so the module's existence isn't a secret from roles that can't open it. */
+   * present and false, the item still renders (never hidden) but disabled: grey label
+   * text, a neutral (never green) icon tile, no navigation, and an aria-disabled + title
+   * explaining why — for a11y and so the module's existence isn't a secret from roles that
+   * can't open it. */
   accessible?: boolean
 }
 
@@ -35,12 +36,15 @@ interface SidebarProps {
   onToggle: () => void
 }
 
-// Single-column soft-neumorphism nav (see ARCHITECTURE.md § 6): the whole sidebar is one
-// `neu-raised` shape; each row is icon + label side by side, collapsing to icon-only (label
-// as a native title tooltip) when `collapsed`. Collapse state is plain component state —
-// deliberately not persisted (see AppLayout.tsx): resets to expanded on every reload rather
-// than reaching for localStorage or a backend preference, per this project's own constraint
-// against adding state-persistence machinery that wasn't asked for.
+// Push-layout, collapsible Sidebar — flat "molten lava" styling (see ARCHITECTURE.md § 6):
+// a solid --surface fill with a 1px --border edge, no shadow-based elevation at all. Icon
+// tiles are their own small flat surfaces (--surface-alt, a real fill + border, not a
+// shadow) regardless of what's behind them; the active tile is a solid --accent (lava)
+// fill with --accent-foreground (dark) icon — verified ~5.0:1, since white-on-lava fails
+// AA for this particular mid-toned orange (see the palette writeup in ARCHITECTURE.md § 6).
+// Hover sits between default and active as a translucent --accent-hot wash, never full
+// opacity, so it's never mistaken for "selected." Sidebar and content widths are
+// complementary and animate together (push layout) — nothing covers anything else.
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { canManageCompanies } = usePermissions()
   // Employees/Positions access now comes entirely from the caller's own Position
@@ -67,16 +71,19 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'neu-raised flex h-svh shrink-0 flex-col bg-card transition-[width] duration-200',
+        'flex h-full shrink-0 flex-col overflow-hidden rounded-md border border-border bg-panel transition-[width] duration-200',
         collapsed ? 'w-16' : 'w-56',
       )}
     >
+      <div className="h-[2px] w-full shrink-0 bg-gradient-to-r from-accent-ember via-accent to-accent-hot" />
+      {/* The toggle is pinned here, at a fixed spot in the Sidebar's own header, so it's
+       * never hidden or scrolled away in either state (see ARCHITECTURE.md § 6). */}
       <div className={cn('flex h-14 items-center px-2', collapsed ? 'justify-center' : 'justify-end')}>
         <button
           type="button"
           onClick={onToggle}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="rounded-md p-2 text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          className="rounded-md p-2 text-panel-foreground/70 outline-none transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-panel"
         >
           {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
         </button>
@@ -91,15 +98,26 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 aria-disabled="true"
                 title={NO_ACCESS_TITLE}
                 className={cn(
-                  'flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground opacity-50',
+                  'flex cursor-not-allowed items-center gap-3 rounded-md px-2 py-2',
                   collapsed && 'justify-center',
                 )}
               >
-                <Icon className="size-4 shrink-0" />
-                {/* Always a real text node (sr-only when collapsed) rather than dropping
-                 * it — the `title` tooltip alone wouldn't give this item any accessible
-                 * name for screen readers, only a hover hint for a mouse. */}
-                {collapsed ? <span className="sr-only">{label}</span> : <span>{label}</span>}
+                {/* Disabled items keep the same neutral tile every enabled item starts
+                 * from — never lava, never the hover wash — so color alone never has to be
+                 * reinterpreted as "maybe clickable". */}
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-secondary text-muted-foreground">
+                  <Icon className="size-4" />
+                </span>
+                {collapsed ? (
+                  <span className="sr-only">{label}</span>
+                ) : (
+                  // --disabled-foreground (not --muted-foreground): a dedicated, cooler
+                  // grey reserved for exactly this "you can't reach this module" signal,
+                  // distinct from ordinary secondary/helper text elsewhere in the app.
+                  <span className="font-display text-sm font-medium text-disabled-foreground">
+                    {label}
+                  </span>
+                )}
               </span>
             )
           }
@@ -109,23 +127,43 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               key={to}
               to={to}
               title={collapsed ? label : undefined}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium outline-none transition-[background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
-                  collapsed && 'justify-center',
-                  // Active item gets a raised pill in --accent-soft (a second, slightly
-                  // lighter dark-green step from --primary — see index.css) with white
-                  // icon/label on top, easily clearing WCAG AA (~6.2:1). Every other state
-                  // (hover, disabled above) deliberately stays flat/neutral so this one
-                  // "you are here" indicator never gets confused with anything else.
-                  isActive
-                    ? 'neu-raised-sm bg-accent-soft text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                )
-              }
+              className={cn(
+                'group flex items-center gap-3 rounded-md px-2 py-2 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-panel',
+                collapsed && 'justify-center',
+              )}
             >
-              <Icon className="size-4 shrink-0" />
-              {collapsed ? <span className="sr-only">{label}</span> : <span>{label}</span>}
+              {({ isActive }) => (
+                <>
+                  <span
+                    className={cn(
+                      'flex size-8 shrink-0 items-center justify-center rounded-lg border transition-colors duration-150',
+                      isActive
+                        ? // Selected: solid --accent (lava) fill, --accent-foreground
+                          // (dark) icon — ~5.0:1, clears WCAG AA. White-on-lava was
+                          // measured and rejected (~3.4:1, fails AA) — see the palette
+                          // writeup in ARCHITECTURE.md § 6.
+                          'border-transparent bg-accent text-accent-foreground'
+                        : // Default: a flat neutral tile (--surface-alt + --border) — its
+                          // own real fill and edge, not a shadow cue, so it reads clearly
+                          // as its own tappable element regardless of the panel behind it.
+                          // Hover is a translucent --accent-hot wash — a step toward the
+                          // active lava fill without being confused for it.
+                          'border-border bg-secondary text-muted-foreground group-hover:border-transparent group-hover:bg-accent-hot/20 group-hover:text-foreground',
+                    )}
+                  >
+                    <Icon className="size-4" />
+                  </span>
+                  {collapsed ? (
+                    <span className="sr-only">{label}</span>
+                  ) : (
+                    // --panel-foreground (not --foreground): this label sits directly on
+                    // the dark --panel, with no card of its own underneath it.
+                    <span className="font-display text-sm font-medium text-panel-foreground">
+                      {label}
+                    </span>
+                  )}
+                </>
+              )}
             </NavLink>
           )
         })}

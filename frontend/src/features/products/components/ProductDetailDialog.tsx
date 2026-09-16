@@ -48,9 +48,7 @@ export function ProductDetailDialog({
                 <span className="flex items-center gap-2">
                   {product.quantity}
                   {product.quantity < LOW_STOCK_THRESHOLD && (
-                    <Badge variant="destructive" className="neu-raised-sm">
-                      Low stock
-                    </Badge>
+                    <Badge variant="destructive">Low stock</Badge>
                   )}
                 </span>
               </DetailRow>
@@ -59,11 +57,11 @@ export function ProductDetailDialog({
 
             {canManageProducts && (
               <DialogFooter>
-                <Button type="button" variant="outline" elevated onClick={onEdit}>
+                <Button type="button" variant="outline" onClick={onEdit}>
                   <Pencil />
                   Edit
                 </Button>
-                <Button type="button" variant="destructive" elevated onClick={onDelete}>
+                <Button type="button" variant="destructive" onClick={onDelete}>
                   <Trash2 />
                   Delete
                 </Button>

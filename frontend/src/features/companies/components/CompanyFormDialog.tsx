@@ -80,7 +80,7 @@ export function CompanyFormDialog({ open, onOpenChange, mode, company }: Company
               {...register('name')}
               aria-invalid={!!errors.name}
             />
-            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+            {errors.name && <p className="text-sm text-destructive-light">{errors.name.message}</p>}
           </div>
 
           <DialogFooter>

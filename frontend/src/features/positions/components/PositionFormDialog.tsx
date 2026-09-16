@@ -117,7 +117,7 @@ export function PositionFormDialog({ open, onOpenChange, mode, position }: Posit
               {...register('name')}
               aria-invalid={!!errors.name}
             />
-            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+            {errors.name && <p className="text-sm text-destructive-light">{errors.name.message}</p>}
           </div>
 
           <div className="flex flex-col gap-2">

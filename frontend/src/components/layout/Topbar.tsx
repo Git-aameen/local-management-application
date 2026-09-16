@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { setActingCompanyId, useActingCompanyId } from '@/lib/actingCompany'
 
-// User email + sign-out now live in Sidebar's SettingsPopover (gear icon on the icon rail)
-// instead of here — this bar's only remaining job is the acting-as-company exit control,
-// so it renders nothing at all outside that mode (no empty chrome for the common case).
+// User email + sign-out live in Sidebar's SettingsPopover (gear icon at the bottom of the
+// Sidebar panel), not here — this bar's only remaining job is the acting-as-company exit
+// control, so it renders nothing at all outside that mode (no empty chrome for the common
+// case). The Sidebar's own toggle button — not a Topbar hamburger — opens/collapses it now
+// that it's a push-layout panel again, not an overlay (see ARCHITECTURE.md § 6).
 export function Topbar() {
   const navigate = useNavigate()
   const actingCompanyId = useActingCompanyId()
@@ -15,7 +17,7 @@ export function Topbar() {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-end border-b border-border bg-card px-6">
+    <header className="flex h-14 shrink-0 items-center justify-end border-b border-border px-6">
       <Button
         type="button"
         variant="outline"

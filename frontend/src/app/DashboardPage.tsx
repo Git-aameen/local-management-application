@@ -1,5 +1,6 @@
 import { useAuth0 } from '@auth0/auth0-react'
 
+import { Card } from '@/components/ui/card'
 import { usePermissions } from '@/features/auth/hooks'
 import { useMyCompany } from '@/features/companies/hooks'
 import { useMySummary } from '@/features/dashboard/hooks'
@@ -13,12 +14,12 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-medium">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Logged in as {user?.email}</p>
+        <h1 className="font-display text-xl font-medium text-panel-foreground">Dashboard</h1>
+        <p className="text-sm text-panel-foreground/70">Logged in as {user?.email}</p>
         {role === 'super_admin' ? (
-          <p className="text-sm text-muted-foreground">Platform Administrator</p>
+          <p className="text-sm text-panel-foreground/70">Platform Administrator</p>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-panel-foreground/70">
             {isCompanyLoading && 'Loading your company…'}
             {isCompanyError && 'Could not load your company.'}
             {company && `Company: ${company.name}`}
@@ -59,11 +60,11 @@ interface SummaryCardProps {
 
 function SummaryCard({ label, value, isLoading, isError }: SummaryCardProps) {
   return (
-    <div className="flex flex-col items-center gap-1 rounded-lg border p-6">
+    <Card className="flex flex-col items-center gap-1 p-6">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-3xl font-semibold">
+      <span className="font-display text-3xl font-semibold">
         {isLoading ? '…' : isError ? '—' : value}
       </span>
-    </div>
+    </Card>
   )
 }

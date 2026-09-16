@@ -56,7 +56,7 @@ describe('SettingsPopover', () => {
     })
   })
 
-  it('stays reachable by its accessible name when collapsed, with no visible "Settings" label', async () => {
+  it('stays reachable by its accessible name when collapsed (label becomes sr-only, not dropped)', () => {
     vi.mocked(useAuth0).mockReturnValue({
       user: { email: 'admin@acmecorporation.com' },
       logout: vi.fn(),
@@ -64,7 +64,8 @@ describe('SettingsPopover', () => {
 
     render(<SettingsPopover collapsed />)
 
-    expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument()
-    expect(screen.queryByText('Settings')).not.toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: /settings/i })
+    expect(trigger).toBeInTheDocument()
+    expect(trigger).toHaveAttribute('title', 'Settings')
   })
 })

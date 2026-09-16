@@ -154,14 +154,14 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
             <Label htmlFor="full_name">Full name</Label>
             <Input id="full_name" {...register('full_name')} aria-invalid={!!errors.full_name} />
             {errors.full_name && (
-              <p className="text-sm text-destructive">{errors.full_name.message}</p>
+              <p className="text-sm text-destructive-light">{errors.full_name.message}</p>
             )}
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" {...register('email')} aria-invalid={!!errors.email} />
-            {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+            {errors.email && <p className="text-sm text-destructive-light">{errors.email.message}</p>}
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -196,7 +196,7 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
               </p>
             )}
             {errors.position_id && (
-              <p className="text-sm text-destructive">{errors.position_id.message}</p>
+              <p className="text-sm text-destructive-light">{errors.position_id.message}</p>
             )}
 
             {selectedPosition && (
@@ -232,7 +232,7 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
               aria-invalid={!!errors.hired_at}
             />
             {errors.hired_at && (
-              <p className="text-sm text-destructive">{errors.hired_at.message}</p>
+              <p className="text-sm text-destructive-light">{errors.hired_at.message}</p>
             )}
           </div>
 
@@ -248,7 +248,7 @@ export function EmployeeFormDialog({ open, onOpenChange, mode, employee }: Emplo
                 aria-invalid={!!errors.salary}
               />
               {errors.salary && (
-                <p className="text-sm text-destructive">{errors.salary.message}</p>
+                <p className="text-sm text-destructive-light">{errors.salary.message}</p>
               )}
             </div>
           )}

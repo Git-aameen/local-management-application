@@ -26,7 +26,7 @@ function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          'neu-raised-sm z-50 w-64 rounded-lg bg-card p-3 text-card-foreground outline-none data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+          'z-50 w-64 rounded-md border border-border bg-card p-3 text-card-foreground outline-none data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
           className,
         )}
         {...props}

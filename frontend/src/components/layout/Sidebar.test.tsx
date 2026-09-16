@@ -50,9 +50,17 @@ function mockManagePermissions({
   } as unknown as ReturnType<typeof useMyPermissions>)
 }
 
-function renderSidebar({ collapsed = false, onToggle = () => {} }: { collapsed?: boolean; onToggle?: () => void } = {}) {
+function renderSidebar({
+  collapsed = false,
+  onToggle = () => {},
+  initialPath = '/dashboard',
+}: {
+  collapsed?: boolean
+  onToggle?: () => void
+  initialPath?: string
+} = {}) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <Sidebar collapsed={collapsed} onToggle={onToggle} />
     </MemoryRouter>,
   )
@@ -64,7 +72,8 @@ function expectEnabled(name: RegExp) {
 }
 
 /** A nav item the current caller CANNOT reach — still rendered (never hidden), but as a
- * non-interactive, aria-disabled element with a "no access" tooltip, not a link. */
+ * non-interactive, aria-disabled element with a "no access" tooltip, not a link (so it has
+ * no href to navigate via at all). */
 function expectDisabled(name: RegExp) {
   expect(screen.queryByRole('link', { name })).not.toBeInTheDocument()
   const item = screen.getByText(name).closest('[aria-disabled="true"]')
@@ -156,28 +165,35 @@ describe('Sidebar Grades link removed', () => {
   })
 })
 
-describe('Sidebar collapse/expand toggle', () => {
-  it('calls onToggle when the collapse button is clicked', async () => {
+describe('Sidebar expand/collapse toggle', () => {
+  it('is always rendered and calls onToggle when clicked, in the expanded state', async () => {
     mockRole('admin')
     mockManagePermissions()
     const onToggle = vi.fn()
     const user = userEvent.setup()
     renderSidebar({ collapsed: false, onToggle })
 
-    await user.click(screen.getByRole('button', { name: /collapse sidebar/i }))
+    const toggle = screen.getByRole('button', { name: /collapse sidebar/i })
+    expect(toggle).toBeInTheDocument()
+    await user.click(toggle)
     expect(onToggle).toHaveBeenCalledTimes(1)
   })
 
-  it('shows the expand button (and not the collapse button) once collapsed', () => {
+  it('is still rendered and functional once collapsed (button never disappears)', async () => {
     mockRole('admin')
     mockManagePermissions()
-    renderSidebar({ collapsed: true })
+    const onToggle = vi.fn()
+    const user = userEvent.setup()
+    renderSidebar({ collapsed: true, onToggle })
 
-    expect(screen.getByRole('button', { name: /expand sidebar/i })).toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: /expand sidebar/i })
+    expect(toggle).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /collapse sidebar/i })).not.toBeInTheDocument()
+    await user.click(toggle)
+    expect(onToggle).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps every enabled nav item reachable (still a real link, by its accessible name) while collapsed', () => {
+  it('keeps every enabled nav item reachable (by its accessible name) while collapsed', () => {
     mockRole('employee')
     mockManagePermissions({ canManageEmployees: true, canManagePositions: true })
     renderSidebar({ collapsed: true })
@@ -188,13 +204,73 @@ describe('Sidebar collapse/expand toggle', () => {
     expectEnabled(/products/i)
   })
 
-  it('keeps a disabled nav item disabled (with its "no access" tooltip) while collapsed', () => {
+  it('shows the label as a hover tooltip (title attribute) only while collapsed', () => {
+    mockRole('admin')
+    mockManagePermissions()
+
+    const { unmount } = renderSidebar({ collapsed: false })
+    expect(screen.getByRole('link', { name: /dashboard/i })).not.toHaveAttribute('title')
+    unmount()
+
+    renderSidebar({ collapsed: true })
+    expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('title', 'Dashboard')
+  })
+
+  it('keeps a disabled item disabled, with its tooltip, while collapsed', () => {
     mockRole('admin')
     mockManagePermissions()
     renderSidebar({ collapsed: true })
 
     expectDisabled(/employees/i)
     expectDisabled(/companies/i)
+  })
+})
+
+describe('Sidebar active/disabled icon styling', () => {
+  it('gives the active item a solid lava icon tile (bg-accent)', () => {
+    mockRole('employee')
+    mockManagePermissions({ canManageEmployees: true })
+    renderSidebar({ initialPath: '/employees' })
+
+    const link = screen.getByRole('link', { name: /employees/i })
+    const iconTile = link.querySelector('span')
+    expect(iconTile).toHaveClass('bg-accent')
+  })
+
+  it('gives a non-active, enabled item the neutral tile, not the active lava fill', () => {
+    mockRole('employee')
+    mockManagePermissions({ canManageEmployees: true })
+    renderSidebar({ initialPath: '/employees' })
+
+    const link = screen.getByRole('link', { name: /dashboard/i })
+    const iconTile = link.querySelector('span')
+    expect(iconTile).toHaveClass('bg-secondary')
+    expect(iconTile).not.toHaveClass('bg-accent')
+  })
+
+  it('gives a disabled item the same neutral tile as an enabled default item, and a grey label', () => {
+    mockRole('admin')
+    mockManagePermissions()
+    renderSidebar()
+
+    const label = screen.getByText('Employees')
+    const item = label.closest('[aria-disabled="true"]') as HTMLElement
+    const iconTile = item.querySelector('span')
+
+    expect(iconTile).toHaveClass('bg-secondary')
+    expect(iconTile).not.toHaveClass('bg-accent')
+    expect(label).toHaveClass('text-disabled-foreground')
+    expect(label).not.toHaveClass('text-panel-foreground')
+  })
+
+  it('gives an enabled, non-active item a full-contrast label — distinct from a disabled item\'s grey one', () => {
+    mockRole('employee')
+    mockManagePermissions({ canManageEmployees: true })
+    renderSidebar()
+
+    const label = screen.getByText('Employees')
+    expect(label).toHaveClass('text-panel-foreground')
+    expect(label).not.toHaveClass('text-disabled-foreground')
   })
 })
 

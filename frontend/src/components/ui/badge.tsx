@@ -13,10 +13,6 @@ const badgeVariants = cva(
         secondary: 'border-transparent bg-secondary text-secondary-foreground',
         destructive: 'border-transparent bg-destructive text-destructive-foreground',
         outline: 'text-foreground',
-        // Soft-neumorphism: a small raised shadow instead of a flat fill (see
-        // ARCHITECTURE.md § 6) — never used for selected/error states, which stay flat,
-        // high-contrast color per that same section.
-        neumorphic: 'neu-raised-sm border-transparent bg-card text-card-foreground',
       },
     },
     defaultVariants: {

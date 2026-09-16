@@ -50,13 +50,13 @@ export function SelectCompanyPage() {
   return (
     <div className="flex min-h-svh flex-col items-center justify-center gap-6 p-6">
       <div className="w-full max-w-lg text-center">
-        <h1 className="text-2xl font-medium">Select a Company</h1>
+        <h1 className="font-display text-2xl font-medium">Select a Company</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Signed in as {user?.email}. Choose a company to manage as its administrator.
         </p>
       </div>
 
-      <div className="w-full max-w-lg rounded-lg border">
+      <div className="w-full max-w-lg overflow-hidden rounded-lg border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -74,7 +74,7 @@ export function SelectCompanyPage() {
             )}
             {isError && (
               <TableRow>
-                <TableCell colSpan={2} className="text-center text-destructive">
+                <TableCell colSpan={2} className="text-center text-destructive-light">
                   Failed to load companies.
                 </TableCell>
               </TableRow>

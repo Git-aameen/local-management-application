@@ -27,12 +27,16 @@ export function SettingsPopover({ collapsed }: SettingsPopoverProps) {
           aria-label="Settings"
           title={collapsed ? 'Settings' : undefined}
           className={cn(
-            'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+            // text-panel-foreground/70 (not text-muted-foreground): this button sits
+            // directly on the dark --panel, with no card of its own.
+            'flex items-center gap-3 rounded-md px-2 py-2 font-display text-sm font-medium text-panel-foreground/70 outline-none transition-colors duration-150 hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-panel',
             collapsed && 'justify-center',
           )}
         >
-          <Settings className="size-4 shrink-0" />
-          {!collapsed && <span>Settings</span>}
+          <span className="flex size-8 shrink-0 items-center justify-center">
+            <Settings className="size-4" />
+          </span>
+          {collapsed ? <span className="sr-only">Settings</span> : <span>Settings</span>}
         </button>
       </PopoverTrigger>
       <PopoverContent side="right" align="end" className="flex flex-col gap-3">
@@ -40,7 +44,6 @@ export function SettingsPopover({ collapsed }: SettingsPopoverProps) {
         <Button
           type="button"
           variant="outline"
-          elevated
           className="w-full"
           onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
         >

@@ -3,7 +3,7 @@ import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
-import { NeumorphicCard } from '@/components/ui/neumorphic-card'
+import { Card } from '@/components/ui/card'
 import { useMyPermissions } from '@/features/auth/hooks'
 
 import { PositionDetailDialog } from './PositionDetailDialog'
@@ -52,24 +52,24 @@ export function PositionListPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-medium">Positions</h1>
+        <h1 className="font-display text-xl font-medium text-panel-foreground">Positions</h1>
         {canManagePositions && (
-          <Button type="button" elevated onClick={() => setDialogState({ mode: 'create' })}>
+          <Button type="button" onClick={() => setDialogState({ mode: 'create' })}>
             <Plus />
             New Position
           </Button>
         )}
       </div>
 
-      {isLoading && <p className="text-center text-muted-foreground">Loading…</p>}
-      {isError && <p className="text-center text-destructive">Failed to load positions.</p>}
+      {isLoading && <p className="text-center text-panel-foreground/70">Loading…</p>}
+      {isError && <p className="text-center text-destructive-light">Failed to load positions.</p>}
       {!isLoading && !isError && positions?.length === 0 && (
-        <p className="text-center text-muted-foreground">No positions yet.</p>
+        <p className="text-center text-panel-foreground/70">No positions yet.</p>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {positions?.map((position) => (
-          <NeumorphicCard
+          <Card
             key={position.id}
             interactive
             role="button"
@@ -120,7 +120,7 @@ export function PositionListPage() {
                 </div>
               )}
             </div>
-          </NeumorphicCard>
+          </Card>
         ))}
       </div>
 

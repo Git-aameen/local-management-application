@@ -35,7 +35,7 @@ export function CompanyListPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-medium">Companies</h1>
+        <h1 className="font-display text-xl font-medium text-panel-foreground">Companies</h1>
         {canManageCompanies && (
           <Button type="button" onClick={() => setDialogState({ mode: 'create' })}>
             <Plus />
@@ -44,7 +44,11 @@ export function CompanyListPage() {
         )}
       </div>
 
-      <div className="rounded-lg border">
+      {/* Flat bg-card surface + border: this table sits directly on --panel, unlike the
+       * card grids on the other list pages, so it needs its own surface (see
+       * ARCHITECTURE.md § 6). No shadow — the flat design relies on the surface-alt/panel
+       * color step plus this border for the edge. */}
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -63,7 +67,7 @@ export function CompanyListPage() {
             )}
             {isError && (
               <TableRow>
-                <TableCell colSpan={columnCount} className="text-center text-destructive">
+                <TableCell colSpan={columnCount} className="text-center text-destructive-light">
                   Failed to load companies.
                 </TableCell>
               </TableRow>

@@ -66,7 +66,9 @@ export function PermissionOverrideSection({ employeeId }: PermissionOverrideSect
       </p>
 
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-      {isError && <p className="text-sm text-destructive">Could not load special permissions.</p>}
+      {isError && (
+        <p className="text-sm text-destructive-light">Could not load special permissions.</p>
+      )}
 
       {data && (
         <form className="flex flex-col gap-2" onSubmit={handleSubmit(onSave)}>

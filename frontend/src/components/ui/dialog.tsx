@@ -38,7 +38,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg duration-150 data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
+          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-md border border-border bg-background p-6 duration-150 data-[state=closed]:opacity-0 data-[state=open]:opacity-100',
           className,
         )}
         {...props}
@@ -77,7 +77,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn('text-lg leading-none font-medium', className)}
+      className={cn('font-display text-lg leading-none font-medium', className)}
       {...props}
     />
   )

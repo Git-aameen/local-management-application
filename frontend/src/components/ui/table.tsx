@@ -11,7 +11,10 @@ function Table({ className, ...props }: React.ComponentProps<'table'>) {
 }
 
 function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
-  return <thead className={cn('[&_tr]:border-b', className)} {...props} />
+  // --surface (not --card, which is the row body's own fill): a flat, visibly distinct band
+  // that reads as "this is the header" through a real color step, no shadow — see
+  // ARCHITECTURE.md § 6.
+  return <thead className={cn('bg-surface [&_tr]:border-b', className)} {...props} />
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
@@ -21,7 +24,7 @@ function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
 function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
   return (
     <tr
-      className={cn('border-b transition-colors hover:bg-muted/50', className)}
+      className={cn('border-b transition-colors hover:bg-muted/70', className)}
       {...props}
     />
   )

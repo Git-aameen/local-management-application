@@ -88,14 +88,14 @@ export function ProductFormDialog({ open, onOpenChange, mode, product }: Product
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="name">Name</Label>
             <Input id="name" {...register('name')} aria-invalid={!!errors.name} />
-            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+            {errors.name && <p className="text-sm text-destructive-light">{errors.name.message}</p>}
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="category">Category</Label>
             <Input id="category" {...register('category')} aria-invalid={!!errors.category} />
             {errors.category && (
-              <p className="text-sm text-destructive">{errors.category.message}</p>
+              <p className="text-sm text-destructive-light">{errors.category.message}</p>
             )}
           </div>
 
@@ -110,7 +110,7 @@ export function ProductFormDialog({ open, onOpenChange, mode, product }: Product
               aria-invalid={!!errors.quantity}
             />
             {errors.quantity && (
-              <p className="text-sm text-destructive">{errors.quantity.message}</p>
+              <p className="text-sm text-destructive-light">{errors.quantity.message}</p>
             )}
           </div>
 
@@ -124,7 +124,7 @@ export function ProductFormDialog({ open, onOpenChange, mode, product }: Product
               {...register('price', { valueAsNumber: true })}
               aria-invalid={!!errors.price}
             />
-            {errors.price && <p className="text-sm text-destructive">{errors.price.message}</p>}
+            {errors.price && <p className="text-sm text-destructive-light">{errors.price.message}</p>}
           </div>
 
           <DialogFooter>

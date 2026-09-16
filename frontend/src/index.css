@@ -1,82 +1,132 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter';
+@import '@fontsource-variable/space-grotesk';
 
 :root {
-  /* Light mode only, by design — see ARCHITECTURE.md § 6. */
-  color-scheme: light;
+  /* Flat "molten lava" palette — dark mode only, by design (see ARCHITECTURE.md § 6). This
+   * replaces the soft-neumorphism green palette entirely: no shadow-based elevation
+   * anywhere, hierarchy comes from flat color steps, borders, and scale instead. */
+  color-scheme: dark;
 
-  --radius: 0.625rem;
+  /* Sharp/angular corners, not soft rounding — 4px base (radius-lg), scaling down to 0px
+   * (radius-sm) and up to 8px (radius-xl). See the radius scale in @theme below. */
+  --radius: 0.25rem;
 
-  /* Soft-green neumorphism palette — background and card are close in value ON PURPOSE
-   * this time (unlike the prior "brighter white card vs. cream page" pass): true
-   * neumorphism needs the raised/inset shadow to be what separates a surface from its
-   * parent, not a color jump — see ARCHITECTURE.md § 6. */
-  --background: #eaf0e9;
-  --foreground: #1b2e22;
-  --card: #f2f6f1;
-  --card-foreground: #1b2e22;
-  --popover: #f2f6f1;
-  --popover-foreground: #1b2e22;
-  --primary: #2f5233;
-  --primary-hover: #24401f;
-  --primary-foreground: #ffffff;
-  /* A second, slightly lighter dark-green step — used only for the Sidebar's active-item
-   * pill (see Sidebar.tsx), so that one recurring "you are here" indicator reads as
-   * distinct from --primary's "New X" action buttons, while still easily clearing WCAG AA
-   * against the white icon on top of it (~6.2:1). */
-  --accent-soft: #3d6b44;
-  /* Generic neutral hover/highlight surface (ghost button hover, select-item highlight,
-   * non-active Sidebar rows) — deliberately NOT the brand green, so hovering something
-   * incidental doesn't flash the same color as a real primary action. The active Sidebar
-   * link uses --accent-soft and primary buttons use --primary directly instead. */
-  --secondary: #e7ede5;
-  --secondary-foreground: #1b2e22;
-  --muted: #e7ede5;
-  --muted-foreground: #5c6b5f;
-  --accent: #e7ede5;
-  --accent-foreground: #1b2e22;
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
-  --border: #e3e8e1;
-  --input: #e3e8e1;
-  --ring: #2f5233;
+  /* --- Base tonal ladder: background < surface < surface-alt, each a real (if modest)
+   * step up in lightness. WCAG's 1.4.11/1.4.3 contrast SCs govern text and UI-component
+   * boundaries, not generic region-background separation — the ratios between these three
+   * are intentionally low (~1.1-1.2:1), same as most real dark-mode UIs (Discord, Linear,
+   * GitHub dark). Every panel/card edge also gets a real --border line so the boundary
+   * never depends on the color-step alone — see ARCHITECTURE.md § 6 for the full writeup. */
+  --background: #0d0b0a; /* page gutter */
+  --surface: #1c1714; /* Sidebar + content panel fill */
+  --surface-alt: #2d2521; /* cards/tables inside the content panel */
 
-  /* Neumorphic shadow pair: light = the "highlight" side, dark = the "shadow" side (see
-   * ARCHITECTURE.md § 6 — never used on table/grid text, focus rings, selected rows, or
-   * form error states). Re-tuned for this slightly more saturated green background — a
-   * touch more opacity and a greener tint than the near-white palette this replaced, so
-   * the shadow reads as sitting on THIS surface rather than a generic grey one. */
-  --shadow-light: rgba(255, 255, 255, 0.85);
-  --shadow-dark: rgba(140, 155, 136, 0.35);
+  /* --- Text --- */
+  --text-primary: #f5ede8; /* warm off-white, not stark white */
+  --text-secondary: #a69a93; /* muted warm grey */
+
+  /* --- Lava accent: two adjacent tones, never one flat orange. --accent is the resting
+   * fill (buttons, active states, links); --accent-hot is the hotter step for hover/focus.
+   * --accent-ember is a deeper ember tone used ONLY decoratively (gradient seams) — never
+   * as a text background, since it fails AA with either light or dark text (see the
+   * contrast table in ARCHITECTURE.md § 6). */
+  --accent: #e8491a;
+  --accent-hot: #ff8a3d;
+  --accent-ember: #b8300d;
+  /* Dark text/icons on --accent or --accent-hot (~5.0:1 / ~8.4:1) — verified better than
+   * white-on-lava (~3.4:1, fails AA) for this particular mid-toned orange. */
+  --accent-foreground: #0d0b0a;
+
+  /* --- Borders: split into two tokens on purpose. --border is decorative (card/table/
+   * panel edges) and reads at only ~1.4-1.8:1 against the surfaces — fine, since it's never
+   * the sole means of identifying a component. --border-strong is for boundaries WCAG 1.4.11
+   * actually governs (input/select default borders, secondary-button outlines) and is tuned
+   * to clear 3:1 against --surface-alt (~3.17:1). */
+  --border: #3a3128;
+  --border-strong: #7d7167;
+
+  /* Disabled Sidebar-item label text — WCAG 1.4.3 exempts inactive-control text from the AA
+   * minimum, so ~3.0:1 against --surface is an intentional, accepted "this is not
+   * interactive" signal, not an oversight. */
+  --disabled-text: #6b615c;
+
+  /* A cooler, more muted red than the lava --accent, so "delete" never reads as a variant of
+   * "primary" — verified with WHITE text (~5.1:1); dark text on it only clears ~3.4:1, the
+   * opposite pairing rule from --accent, and worth remembering when styling new destructive
+   * UI. --destructive-light is a brighter version of the same hue for error TEXT that sits
+   * directly on a dark surface with no fill of its own (plain --destructive text only
+   * clears ~3.3:1 there, failing AA for body text). */
+  --destructive: #b33a3a;
+  --destructive-foreground: #f5ede8;
+  --destructive-light: #e85a50;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-hover: var(--primary-hover);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-accent-soft: var(--accent-soft);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+
+  --color-foreground: var(--text-primary);
+  --color-muted-foreground: var(--text-secondary);
+  /* A subtle warm charcoal one step above --surface-alt — used at reduced opacity
+   * (bg-muted/70) for table-row hover. Deliberately NOT --accent-hot: tested at 70% opacity
+   * over --surface-alt, a lava hover wash drops text-on-hover contrast to ~2.3:1 against
+   * --text-primary, failing AA — a subtle neutral hover keeps rows legible while still
+   * giving a clear hover cue. */
+  --color-muted: #3d342e;
+
+  /* card/popover: inner surfaces nested inside the Sidebar/content panel shells (dialogs,
+   * grid cards, the Companies table, the Settings popover) — same fill as --surface-alt. */
+  --color-card: var(--surface-alt);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--surface-alt);
+  --color-popover-foreground: var(--text-primary);
+
+  /* panel: the Sidebar + content-panel shells themselves. */
+  --color-panel: var(--surface);
+  --color-panel-foreground: var(--text-primary);
+
+  /* primary: the app's one brand/interactive color, now the lava accent itself — every
+   * button, link, and active state that used to be dark green is now lava, automatically,
+   * via this single remap. */
+  --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hot);
+  --color-primary-foreground: var(--accent-foreground);
+
+  /* secondary: flat neutral surface for default (non-active) tiles and secondary buttons —
+   * same fill as --surface-alt, --text-primary content. */
+  --color-secondary: var(--surface-alt);
+  --color-secondary-foreground: var(--text-primary);
+
+  /* accent (shadcn's generic hover-highlight slot) IS the lava accent here on purpose —
+   * hovering a ghost/outline button or a select item now genuinely glows lava, which is the
+   * point of a molten theme rather than a coincidence of naming. */
   --color-accent: var(--accent);
+  --color-accent-hot: var(--accent-hot);
+  --color-accent-ember: var(--accent-ember);
   --color-accent-foreground: var(--accent-foreground);
+
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-light: var(--destructive-light);
+
   --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--border-strong);
+  --color-ring: var(--accent-hot);
+  --color-disabled-foreground: var(--disabled-text);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Headings, page titles, button/nav labels — a geometric, slightly industrial face with
+   * enough character to hold up against the black+lava palette. Inter stays for body/table
+   * data, which needs its tabular-figure legibility more than it needs personality. */
+  --font-display: 'Space Grotesk Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 @layer base {
@@ -87,39 +137,6 @@
     @apply bg-background text-foreground font-sans;
     margin: 0;
   }
-}
-
-/* Soft neumorphism raised/pressed shadow pairs. Two sizes: `-sm` for buttons/badges/inputs,
- * the unsuffixed size for the page-level card that wraps a grid/list (see
- * ARCHITECTURE.md § 6 — never applied to table/grid cell text, focus rings, selected rows,
- * or form error states). Disabled elements get neither (see .neu-flat below), so a
- * permission-disabled button never gets confused for an enabled one. */
-@utility neu-raised {
-  box-shadow:
-    6px 6px 12px var(--shadow-dark),
-    -6px -6px 12px var(--shadow-light);
-}
-
-@utility neu-raised-sm {
-  box-shadow:
-    3px 3px 6px var(--shadow-dark),
-    -3px -3px 6px var(--shadow-light);
-}
-
-@utility neu-pressed-sm {
-  box-shadow:
-    inset 3px 3px 6px var(--shadow-dark),
-    inset -3px -3px 6px var(--shadow-light);
-}
-
-@utility neu-inset-sm {
-  box-shadow:
-    inset 2px 2px 4px var(--shadow-dark),
-    inset -2px -2px 4px var(--shadow-light);
-}
-
-@utility neu-flat {
-  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

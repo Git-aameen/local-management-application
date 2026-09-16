@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog'
-import { NeumorphicCard } from '@/components/ui/neumorphic-card'
+import { Card } from '@/components/ui/card'
 import { SimplePagination } from '@/components/ui/pagination'
 import {
   Select,
@@ -71,9 +71,9 @@ export function ProductListPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-medium">Products</h1>
+        <h1 className="font-display text-xl font-medium text-panel-foreground">Products</h1>
         {canManageProducts && (
-          <Button type="button" elevated onClick={() => setDialogState({ mode: 'create' })}>
+          <Button type="button" onClick={() => setDialogState({ mode: 'create' })}>
             <Plus />
             New Product
           </Button>
@@ -96,15 +96,15 @@ export function ProductListPage() {
         </Select>
       </div>
 
-      {isLoading && <p className="text-center text-muted-foreground">Loading…</p>}
-      {isError && <p className="text-center text-destructive">Failed to load products.</p>}
+      {isLoading && <p className="text-center text-panel-foreground/70">Loading…</p>}
+      {isError && <p className="text-center text-destructive-light">Failed to load products.</p>}
       {!isLoading && !isError && data?.items.length === 0 && (
-        <p className="text-center text-muted-foreground">No products yet.</p>
+        <p className="text-center text-panel-foreground/70">No products yet.</p>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {data?.items.map((product) => (
-          <NeumorphicCard
+          <Card
             key={product.id}
             interactive
             role="button"
@@ -156,13 +156,11 @@ export function ProductListPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Qty {product.quantity}</span>
               {product.quantity < LOW_STOCK_THRESHOLD && (
-                <Badge variant="destructive" className="neu-raised-sm">
-                  Low stock
-                </Badge>
+                <Badge variant="destructive">Low stock</Badge>
               )}
             </div>
             <span className="text-sm font-medium">${Number(product.price).toFixed(2)}</span>
-          </NeumorphicCard>
+          </Card>
         ))}
       </div>
 

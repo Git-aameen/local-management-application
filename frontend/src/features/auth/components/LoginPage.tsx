@@ -45,16 +45,18 @@ export function LoginPage() {
   return (
     <div className="grid min-h-svh grid-cols-1 md:grid-cols-2">
       <div className="hidden flex-col items-center justify-center gap-2 bg-muted p-10 md:flex">
-        <h1 className="text-3xl font-semibold">Local Management Application</h1>
+        <h1 className="font-display text-3xl font-semibold">Local Management Application</h1>
         <p className="text-center text-muted-foreground">
           Multi-tenant HR &amp; inventory backoffice
         </p>
       </div>
 
       <div className="flex flex-col items-center justify-center gap-6 p-6">
-        <h1 className="text-2xl font-medium md:hidden">Local Management Application</h1>
+        <h1 className="font-display text-2xl font-medium md:hidden">
+          Local Management Application
+        </h1>
         <div className="flex w-full max-w-sm flex-col items-center gap-4 text-center">
-          <h2 className="text-xl font-medium">Log in</h2>
+          <h2 className="font-display text-xl font-medium">Log in</h2>
           <p className="text-sm text-muted-foreground">
             Sign in with your Local Management Application account.
           </p>
@@ -70,7 +72,7 @@ export function LoginPage() {
 
           {popupUnavailable && (
             <div className="flex w-full flex-col gap-2 rounded-md border border-destructive/50 p-3">
-              <p className="text-sm text-destructive" role="alert">
+              <p className="text-sm text-destructive-light" role="alert">
                 We couldn't open the login popup. Your browser (or an extension) may be
                 blocking pop-ups for this site — allow them and try again, or continue below.
               </p>
